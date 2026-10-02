@@ -70,6 +70,14 @@ defmodule AshJudgments.MixProject do
       # transitively on ash.
       {:jason, "~> 1.4"},
 
+      # The ONE outbound call this package makes: the runtime's
+      # model-listing endpoint, for digest pinning
+      # (AshJudgments.Profile.Digest — see its scope-boundary note). The
+      # evaluate wire itself stays upstream (ash_ai + req_llm, which bring
+      # req along transitively anyway); declared explicitly because it is
+      # called directly.
+      {:req, "~> 0.5"},
+
       # Optional concept integrations. Hosts add the dep, the bridge
       # activates (see AshJudgments.Availability); a missing dep degrades to
       # a structured error that names it (`{:error, {:missing_dependency,
@@ -118,14 +126,14 @@ defmodule AshJudgments.MixProject do
         "GitHub" => "https://github.com/lukegalea/ash_judgments",
         "Usage rules" => "https://github.com/lukegalea/ash_judgments/blob/HEAD/usage-rules.md"
       },
-      files: ~w(lib mix.exs README.md LICENSE LICENSES usage-rules.md .formatter.exs)
+      files: ~w(lib mix.exs README.md LICENSE LICENSES usage-rules.md docs .formatter.exs)
     ]
   end
 
   defp docs do
     [
       main: "readme",
-      extras: ["README.md", "usage-rules.md"] ++ extra_docs()
+      extras: ["README.md", "usage-rules.md", "docs/instrument-profiles.md"] ++ extra_docs()
     ]
   end
 

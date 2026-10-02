@@ -36,6 +36,9 @@ Facts: stdout is pure JSON (parse it; don't eyeball); first invocation pays mix-
 - Optional integrations (`ash_decisions`, `ash_rules`, `ash_bpmn`, `ash_compliance`,
   `ash_events`, `opentelemetry_ash`) must stay optional: gate behind
   `Code.ensure_loaded?/1`, degrade to `{:error, {:missing_dependency, dep}}`, never crash.
+- Profiles are model-agnostic by design: the homelab models are prototype instruments,
+  re-chosen at launch. No model id, endpoint or key literal ever enters source or config —
+  profiles are host config data resolving `{:system, var}` at call time.
 - Every source file carries its SPDX header; prose/dotfiles are annotated in REUSE.toml.
   `reuse lint` is a CI gate — keep it clean.
 - Fixtures are synthetic. No customer data, contract terms, pricing, or private schema
@@ -47,6 +50,9 @@ Facts: stdout is pure JSON (parse it; don't eyeball); first invocation pays mix-
 - Run: `mix test`. The suite needs a PostgreSQL for the `:db`-tagged tests (env vars
   `DB_USER`, `DB_PASSWORD`, `DB_HOST`/`PGHOST`, `PGPORT`; the test helper creates and
   migrates its database itself). `SKIP_DB=1 mix test` excludes them.
+- The dual contract test needs a reachable instrument and is excluded from ordinary
+  runs: `OLLAYA_BASE_URL=... OLLAYA_MODEL=... mix test --only instrument_contract`.
+  No default model exists in this repository on purpose.
 - On the development host, use the `ash_enterprise` devenv (Postgres + toolchain):
 
   ```bash

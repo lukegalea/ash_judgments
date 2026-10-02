@@ -18,7 +18,17 @@
           # modules and cross-module helpers — they are grep-friendly and
           # keep the called surface obvious at each site, so single-use
           # "alias this nested module" suggestions are noise.
-          {Credo.Check.Design.AliasUsage, []}
+          {Credo.Check.Design.AliasUsage, []},
+
+          # This package's exception names are contract vocabulary, not a
+          # naming strategy: `FloatingAlias` and `ResidencyDenied` are the
+          # names the ticket and the RFC use, and `MissingPin`,
+          # `MissingRegion` and `MissingEnv` describe what they are. Credo's
+          # consistency check reads the "Missing" trio as a prefix scheme
+          # every other exception must follow; they are deliberately
+          # different classes of failure (misconfiguration vs refusal vs
+          # unavailability), and the names say which.
+          {Credo.Check.Consistency.ExceptionNames, []}
         ]
       }
     }

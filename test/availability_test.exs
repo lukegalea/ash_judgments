@@ -3,7 +3,14 @@
 # SPDX-License-Identifier: MIT
 
 defmodule AshJudgments.AvailabilityTest do
-  use ExUnit.Case, async: true
+  # async: false — the ensure_active! test removes a module from the
+  # node-global code path and restores it. While that window is open, a
+  # concurrent test calling Code.ensure_loaded?/1 can re-load the purged
+  # module (the path entry is only deleted after the purge), and the raise
+  # assertion then sees an active module that should be inactive — exactly
+  # the CI flake this once was. Mutating the code server belongs in a
+  # non-async module, which ExUnit runs exclusively.
+  use ExUnit.Case, async: false
 
   describe "report/0" do
     test "lists every optional integration, never raises, and is JSON-encodable" do

@@ -18,5 +18,10 @@ defmodule AshJudgments.Test.Domain do
   resources do
     resource AshJudgments.Test.Note
     resource AshJudgments.Test.WorkOrder
+
+    # The instrument probe (generic actions, no data) — it lives on the
+    # domain because Ash refuses to run actions for resources the domain
+    # does not accept.
+    resource AshJudgments.Test.InstrumentProbe
   end
 end

@@ -143,6 +143,31 @@ jobs:
       - uses: actions/checkout@v4
       - uses: fsfe/reuse-action@v5
 
+  instrument-contract:
+    name: Instrument contract suite
+    runs-on: ubuntu-latest
+    # The dual contract test (CORE-PROFILES) needs a reachable instrument,
+    # so it never runs on push/PR — which also makes "never on pull requests
+    # from forks" structural (no PR event reaches this job, and the
+    # repository check keeps fork dispatches out). It is meant for a
+    # self-hosted, in-zone runner dispatching manually; advisory until one
+    # is wired, and dormant under DEC-HOSTED for the hosted job.
+    if: github.event_name == 'workflow_dispatch' && github.repository == 'lukegalea/ash_judgments'
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-beam
+        with:
+          deps-token: ${{ secrets.PRIVATE_DEPS_TOKEN }}
+      - run: mix deps.compile
+      - name: Contract over the real wire
+        env:
+          OLLAYA_BASE_URL: ${{ secrets.OLLAYA_BASE_URL }}
+          OLLAYA_MODEL: ${{ vars.OLLAYA_MODEL }}
+          OLLAYA_DIGEST: ${{ secrets.OLLAYA_DIGEST }}
+          TYPESAFE_API_KEY: ${{ secrets.TYPESAFE_API_KEY }}
+        run: mix test --only instrument_contract
+
   dialyzer:
     name: Dialyzer (advisory)
     runs-on: ubuntu-latest

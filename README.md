@@ -73,6 +73,32 @@ end
 
 What works today:
 
+- **Instrument profiles** (`AshJudgments.Profile`) — host-declared, model-agnostic
+  profiles over four separable concerns: identity (model id + sha256 digest pin),
+  runtime/transport (a ReqLLM model spec for upstream `evaluate`), residency class
+  (`in_cluster | sub_processor`, guarded against the stack's region), and replacement
+  (swappable config data). Pinning fails loud on floating aliases; the tenant opt-out is
+  a host-implemented `ResidencyPolicy` enforced next to the client in the action path;
+  `Profile.warm/1` verifies the pin against the runtime's model-listing endpoint at boot;
+  two-host routing is a config map with fail-loud semantics.
+
+  ```elixir
+  config :ash_judgments,
+    region: :ca,
+    profiles: [
+      [
+        name: :laya_local,
+        model: "laya:typed-decisions",
+        base_url: {:system, "OLLAYA_BASE_URL"},
+        api_key: {:system, "OLLAYA_API_KEY", "local"},
+        residency: :in_cluster,
+        region: :ca,
+        digest: {:system, "OLLAYA_LAYA_DIGEST"},
+        pin: :required
+      ]
+    ]
+  ```
+
 - **`AshJudgments.Availability`** — every optional integration (the bridges, events,
   telemetry) is gated behind `Code.ensure_loaded?/1`. A missing dependency degrades to a
   structured error that names the dep, and never crashes:
@@ -89,11 +115,15 @@ What works today:
 ## What ships
 
 - `AshJudgments` — the package contract (see the moduledoc).
+- `AshJudgments.Profile` — profiles, pinning, region guard, residency policy, warm-up,
+  and the digest module (`docs/instrument-profiles.md` is the full topic).
+- `AshJudgments.ResidencyPolicy` — the tenant residency behaviour and its
+  deny-by-silence default.
 - `AshJudgments.Availability` — the optional-dependency contract above.
-- Module stubs for the ticket wave, each with its scope in the moduledoc:
-  `Profile` (AST-86), `Registry` (AST-87), `Ledger` (AST-88), `Cache` (AST-89),
-  `Telemetry` (AST-90), `Calibration` (AST-91), `Bridge.Dmn` (AST-92),
-  `Bridge.Rules` (AST-93), `Bridge.Bpmn` (AST-94), `Bridge.Evidence` (AST-95).
+- Module stubs for the remaining ticket wave, each with its scope in the moduledoc:
+  `Registry` (AST-87), `Ledger` (AST-88), `Cache` (AST-89), `Telemetry` (AST-90),
+  `Calibration` (AST-91), `Bridge.Dmn` (AST-92), `Bridge.Rules` (AST-93),
+  `Bridge.Bpmn` (AST-94), `Bridge.Evidence` (AST-95).
 
 ## What it never does
 
@@ -139,14 +169,23 @@ cd /home/lukegalea/ash_enterprise && devenv shell -- \
   bash -c 'cd /home/lukegalea/ast-forks/ash_judgments && mix test'
 ```
 
+The dual contract test runs against a reachable instrument, on demand:
+
+```bash
+OLLAYA_BASE_URL=http://<host>:11435 OLLAYA_MODEL="laya:typed-decisions" \
+  mix test --only instrument_contract
+```
+
 The house pre-commit gate is `mix precommit` (compile with warnings as errors, unlock
 check, format, the iron-laws judge, tests, docs validation).
 
 ## Status
 
-**Scaffold.** Module layout, availability contract, test support app, CI — and nothing
-else yet, on purpose: each stub names its ticket (AST-86…AST-95) and ships no feature
-logic until that ticket lands.
+**Scaffold, plus instrument profiles.** The package contract, the availability contract,
+the profile layer (AST-86: residency, pinning, tenant opt-out, warm-up, the dual contract
+test), the test support app and CI are real; the remaining namespaces are stubs on
+purpose — each names its ticket (AST-87…AST-95) and ships no feature logic until that
+ticket lands.
 
 **Reversibility (thesis 6).** Tier 3 — first-party, accepted, not on hex; confined to its
 own namespace and the host resources that include its fragments. The seam is upstream:

@@ -74,15 +74,21 @@ must not.
 ## Profiles, pinning and residency
 
 - A floating tag (`-latest`, `-preview`) is a silent policy change and is forbidden in
-  compliance paths. Pinned profiles carry a model digest; when the answered model differs
-  from the pinned expectation, the package records `pin_mismatch` and fails where
-  `pin: :required`.
+  compliance paths. Pinned profiles carry a model digest; a `pin: :required` profile
+  resolving to a floating alias raises, and one without a digest fails to resolve —
+  a profile that cannot report a digest cannot feed admission.
 - Every profile carries its residency (`in_cluster` | `sub_processor`). Host code
   implements the residency policy; a `sub_processor` call is a disclosure — one ledger
   row and one span, with `ai.disclosure=true` — and a tenant opt-out is honoured next to
-  the client, not in a dashboard afterwards.
+  the client, not in a dashboard afterwards. The default posture denies sub-processor
+  access for tenants with no recorded setting; unknown tenants never opt in by silence.
 - `base_url` and `api_key` resolve from the environment at call time; never commit a
   literal key or endpoint to config or source.
+- Profiles are swappable data, never code. The homelab models are prototype
+  instruments — models are re-chosen at launch — so no model id, endpoint or key
+  literal belongs in source. Hosts that route models across hosts do it with a config
+  map (`:model_routes`), whose missing entries fail loud rather than silently falling
+  back.
 
 ## Optional integrations
 
