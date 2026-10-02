@@ -99,11 +99,40 @@ declarations. The judge's cache lookups read the override first.
   when the slot's count crosses `min_n`, record a run and call
   `propose_band_table/3`; review the proposal; certify by a person;
   activate in ash_decisions.
-- **S1-25** (the calibration-run harness, queued): loads label rows,
-  runs the judge in `:live`/`:shadow` or reads recorded rows, computes
-  through `Metrics`, records through the fragment, proposes through
-  `propose_band_table/3`. The `mix ash_judgments.calibrate` task and
-  the DMN XML rendering of the proposal belong to that ticket.
+- **S1-25** (the calibration-run harness): `mix ash_judgments.calibrate
+  <family> [--source eval_set|shadow_ledger] [--dry-run]` loads the
+  family's labelled pairs through a host seam, computes through
+  `Metrics` and `RiskControl`, hands the run to `propose_band_table/3`,
+  and records it through the fragment — a refused proposal is still a
+  recorded `:no_table` run; a refusal never writes the proposal. The
+  DMN rendering (`Calibration.ProposalDmn.render/2`) turns a recorded
+  `proposed_band_table` into the publishable DMN XML document in the
+  ash_decisions decision-table shape: a two-band UNIQUE table over the
+  conformal score (`admit` at `≥ λ̂`, `review` below) with **no default
+  rule** — an empty `matched_rule_ids` stays a refusal (ADR 0041).
+  Rendering is pure and dependency-free; review, certification and
+  publication stay the host's and ash_decisions' acts.
+
+## The harness task (S1-25)
+
+The task reads the family's labelled pairs and the store through two
+host-supplied seams (stated in the task's moduledoc, the shadow
+task's pattern):
+
+    config :ash_judgments, :calibration_input, {MyApp.EvalSets, :load, []}
+    # load(family, source) -> {:ok, input} | {:error, reason}
+
+    config :ash_judgments, :calibration_store, MyApp.CalibrationRun
+    # a host resource instantiating Calibration.Fragment
+
+The input carries the `answer_kind`, the `Metrics` pair shapes, the
+`RiskControl` scored pairs (`{score, gold_supports?}`), and the run
+key's identity fields (question hashes, model version/digest, runtime
+version, `eval_set_hash`, region). The task computes the §8.1 metrics
+object, the conformal threshold at the family's α, records the run
+with the proposal (or the `:no_table` negative result) on it, and
+prints the DMN rendering. `--dry-run` prints all of it and records
+nothing; a missing seam is an honest refusal, never a fabrication.
 
 Statistical basis: the Feb 2026 Sci Reports clinical-triage paper and
 arXiv 2605.20956 (conformal risk control, prevalence-shift risk) — the
