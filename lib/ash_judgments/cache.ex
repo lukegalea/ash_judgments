@@ -141,9 +141,14 @@ defmodule AshJudgments.Cache do
 
   defp within_ttl?(_record, nil), do: false
 
-  defp within_ttl?(record, ttl_seconds) when is_integer(ttl_seconds) do
+  # ttl 0 means NEVER reuse (the family-override semantics — an
+  # operations family turns caching off in config), not "reuse within
+  # the same second".
+  defp within_ttl?(record, ttl_seconds) when is_integer(ttl_seconds) and ttl_seconds > 0 do
     DateTime.diff(DateTime.utc_now(), record.recorded_at) <= ttl_seconds
   end
+
+  defp within_ttl?(_record, _ttl_seconds), do: false
 
   @doc """
   Rebuilds the typed answer from a recorded observation, for cache hits

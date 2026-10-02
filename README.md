@@ -164,6 +164,11 @@ What works today:
   residency and disclosure data), handler-side OTel spans (`ai.disclosure` on
   sub-processor calls), `Telemetry.Metrics` definitions, and the production
   model-version capture; `docs/telemetry.md`.
+- `Calibration` (AST-91) — the §8.1 run store and the per-family accumulation
+  (host-instantiated fragments), per-kind metrics (ECE/Brier, per-class P/R,
+  the extraction four), conformal thresholds (the λ̂ quantile rule), the
+  n-threshold band-table PROPOSAL and the publish-time verifier; family config
+  carries min-n and the TTL override; `docs/calibration.md`.
 - `Bridge.Bpmn` (AST-94) — the BPMN `ash:call` seam: `bpmn_callable? true` generates
   `judge_<name>_signals` actions returning a string-keyed, scalar-valued map (the
   answer's scalars plus the judgment id) that an `ash:call` service task promotes
@@ -229,15 +234,14 @@ check, format, the iron-laws judge, tests, docs validation).
 
 ## Status
 
-**Profiles, the registry, the ledger, the facts/query surface, the cache, the four
-bridges and telemetry are real; calibration is not yet.** The package contract, the
+**Everything the package scoped now ships**: profiles, the registry, the ledger,
+the facts/query surface, the cache, all four bridges, telemetry and calibration. The package contract, the
 availability contract, the profile layer (AST-86), the question registry DSL (AST-87),
 the judgment ledger (AST-88), the facts/query surface (S1-53: materialised facts,
 tri-state/status/freshness reads, assess, materialisation), the execution modes (AST-89:
 live/replay/shadow over the §4.4 cache key), and the bridges — ash_rules (AST-93), DMN
 band tables (AST-92), BPMN judge callables (AST-94), evidence mapping (AST-95) — ship;
-the remaining namespace is a stub on purpose — it names its ticket (AST-91) and ships
-no feature logic until that ticket lands.
+no namespace is a stub any more: every module ships its feature logic.
 
 **Reversibility (thesis 6).** Tier 3 — first-party, accepted, not on hex; confined to its
 own namespace and the host resources that include its fragments. The seam is upstream:

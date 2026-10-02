@@ -32,6 +32,10 @@ defmodule AshJudgments.Test.Domain do
     resource(AshJudgments.Test.Banding)
     resource(AshJudgments.Test.Certification)
 
+    # The calibration store (AST-91): the §8.1 runs + the accumulation.
+    resource(AshJudgments.Test.CalibrationRun)
+    resource(AshJudgments.Test.CalibrationSample)
+
     # The BPMN engine resources (AST-94 integration): the six core kinds,
     # instantiated on our repo. TEST-ONLY — ash_bpmn is a dev/test-only
     # optional dep and no lib/ module references it.

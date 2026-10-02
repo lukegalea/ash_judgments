@@ -16,6 +16,8 @@
   AshJudgments.Test.Fact,
   AshJudgments.Test.Banding,
   AshJudgments.Test.Certification,
+  AshJudgments.Test.CalibrationRun,
+  AshJudgments.Test.CalibrationSample,
   AshJudgments.Test.Bpmn.Definition,
   AshJudgments.Test.Bpmn.Instance,
   AshJudgments.Test.Bpmn.Token,

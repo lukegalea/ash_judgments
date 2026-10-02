@@ -196,7 +196,7 @@ defmodule AshJudgments.Registry.Judge do
     ledger = ledger_resource()
 
     with {:ok, model_spec} <- resolve_model(question, input, ctx) do
-      case ledger && Cache.lookup_live(ledger, Ledger.cache_key(key_inputs), question.ttl) do
+      case ledger && Cache.lookup_live(ledger, Ledger.cache_key(key_inputs), ttl_for(question)) do
         nil ->
           miss(Map.put(call, :model_spec, model_spec), wire_question_hash)
 
@@ -319,7 +319,9 @@ defmodule AshJudgments.Registry.Judge do
          wire_question_hash
        ) do
     ledger = ledger_resource()
-    live_record = ledger && Cache.lookup_live(ledger, Ledger.cache_key(key_inputs), question.ttl)
+
+    live_record =
+      ledger && Cache.lookup_live(ledger, Ledger.cache_key(key_inputs), ttl_for(question))
 
     candidate_question = candidate_question(question, ctx)
     candidate_ctx = %{ctx | judgments: Map.put(ctx[:judgments] || %{}, :mode, :live)}
@@ -578,6 +580,14 @@ defmodule AshJudgments.Registry.Judge do
     end
 
     :ok
+  end
+
+  # The cache freshness: the family's TTL override (FamilyConfig, the
+  # AST-89 deferral) wins over the question's declared ttl — an
+  # operations family tunes freshness in host config, without touching
+  # the locked question declaration.
+  defp ttl_for(question) do
+    AshJudgments.Calibration.FamilyConfig.ttl(question.family) || question.ttl
   end
 
   defp ledger_resource do

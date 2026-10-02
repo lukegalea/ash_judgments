@@ -156,7 +156,8 @@ defmodule AshJudgments.MixProject do
           "docs/question-registry.md",
           "docs/bridge-bpmn.md",
           "docs/bridge-evidence.md",
-          "docs/telemetry.md"
+          "docs/telemetry.md",
+          "docs/calibration.md"
         ] ++ extra_docs()
     ]
   end
