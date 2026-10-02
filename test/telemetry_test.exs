@@ -39,7 +39,9 @@ defmodule AshJudgments.TelemetryTest do
       Application.delete_env(:ash_judgments, :ledger)
       Application.delete_env(:ash_judgments, :facts)
       Application.put_env(:ash_judgments, :region, :ca)
-      Application.delete_env(:ash_judgments, :profiles)
+      # RESTORE, don't delete: :profiles is stack config from
+      # config/test.exs — later tests' judges resolve through it.
+      Application.put_env(:ash_judgments, :profiles, standard_profiles())
       Telemetry.detach_otel()
     end)
 
