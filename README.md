@@ -143,6 +143,18 @@ What works today:
   derived tri-state/status reads (membership is derived, never stored; stale
   and expired read `unknown` and queue for reassessment); and the bounded
   `assess` selection with a priority seam for S1-56's retrieval.
+- **The DMN bridge and bandings** (`AshJudgments.Bridge.Dmn`,
+  `AshJudgments.Banding.Fragment`, `AshJudgments.Banding.CertificationFragment`)
+  — flatten recorded answers into FEEL inputs (decimal strings, present
+  markers), the frozen `admit | review | omit` band contract
+  (empty matched_rule_ids is a refusal), and the §7.1/§8.2 records the
+  host instantiates — recorded, never recomputed.
+- **The DMN bridge and bandings** (`AshJudgments.Bridge.Dmn`,
+  `AshJudgments.Banding.Fragment`, `AshJudgments.Banding.CertificationFragment`)
+  — flatten recorded answers into FEEL inputs (decimal strings, present
+  markers), the frozen `admit | review | omit` band contract
+  (empty matched_rule_ids is a refusal), and the §7.1/§8.2 records the
+  host instantiates — recorded, never recomputed.
 - **The ash_rules bridge** (`AshJudgments.Bridge.Rules`) — fact-schema
   entries with escalate-means-omission (`missing: :unknown`), the
   FactBuilder over the materialised facts table, and the fact-snapshot

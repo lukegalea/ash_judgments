@@ -103,6 +103,38 @@ error, never a crash:
 - Gate new integration code behind `Code.ensure_loaded?/1` (the Ecto-Jason pattern) so
   the package keeps compiling with or without any of them.
 
+## The DMN bridge and bandings
+
+- Band tables live in `ash_decisions` (ADR 0041); the bridge only
+  FLATTENS recorded answers into FEEL inputs (`Bridge.Dmn.inputs/2`) —
+  decimal strings, present markers, never absent keys — and the
+  evaluation goes through the host resolver seam. Nothing evaluates in
+  this package, and nothing calls a model on the banding path.
+- `matched_rule_ids` empty is a REFUSAL, not a result (ADR 0041): the
+  host's banding step refuses before writing, and the fragment keeps
+  the contract on the record.
+- Bandings and certifications are recorded, never recomputed: their
+  creates accept the band-table's outputs and the evaluation id as
+  inputs (law 2). Bandings are immutable; facts are superseded; certs
+  are revoked. The frozen band enum is `admit | review | omit` — never
+  `unknown` (that is the ash_rules outcome layer).
+
+## The DMN bridge and bandings
+
+- Band tables live in `ash_decisions` (ADR 0041); the bridge only
+  FLATTENS recorded answers into FEEL inputs (`Bridge.Dmn.inputs/2`) —
+  decimal strings, present markers, never absent keys — and the
+  evaluation goes through the host resolver seam. Nothing evaluates in
+  this package, and nothing calls a model on the banding path.
+- `matched_rule_ids` empty is a REFUSAL, not a result (ADR 0041): the
+  host's banding step refuses before writing, and the fragment keeps
+  the contract on the record.
+- Bandings and certifications are recorded, never recomputed: their
+  creates accept the band-table's outputs and the evaluation id as
+  inputs (law 2). Bandings are immutable; facts are superseded; certs
+  are revoked. The frozen band enum is `admit | review | omit` — never
+  `unknown` (that is the ash_rules outcome layer).
+
 ## The ash_rules bridge
 
 - The bridge reads the MATERIALISED FACTS TABLE, not the ledger: facts

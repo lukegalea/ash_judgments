@@ -13,7 +13,9 @@
   AshJudgments.Test.Judgment,
   AshJudgments.Test.HumanVerdict,
   AshJudgments.Test.EventLog,
-  AshJudgments.Test.Fact
+  AshJudgments.Test.Fact,
+  AshJudgments.Test.Banding,
+  AshJudgments.Test.Certification
 ]
 |> Enum.each(&Code.ensure_loaded!/1)
 
