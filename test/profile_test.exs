@@ -361,6 +361,7 @@ defmodule AshJudgments.ProfileTest do
 
     test "fetch/1 reads the configured registry; unknown names error with the name" do
       Application.put_env(:ash_judgments, :region, :ca)
+      restore_profiles!()
 
       Application.put_env(:ash_judgments, :profiles, [
         [
@@ -386,6 +387,7 @@ defmodule AshJudgments.ProfileTest do
       Application.put_env(:ash_judgments, :region, :ca)
       Application.put_env(:ash_judgments, :residency_policy, AshJudgments.Test.ResidencyPolicy)
       Application.put_env(:ash_judgments, :test_residency_decisions, %{sub_processor: false})
+      restore_profiles!()
 
       Application.put_env(:ash_judgments, :profiles, [
         [
@@ -477,5 +479,19 @@ defmodule AshJudgments.ProfileTest do
       assert {:error, %AshJudgments.Profile.DigestUnavailable{}} =
                AshJudgments.Profile.warm(profile)
     end
+  end
+
+  defp restore_profiles! do
+    previous = Application.get_env(:ash_judgments, :profiles)
+
+    ExUnit.Callbacks.on_exit(fn ->
+      if previous == nil do
+        Application.delete_env(:ash_judgments, :profiles)
+      else
+        Application.put_env(:ash_judgments, :profiles, previous)
+      end
+    end)
+
+    :ok
   end
 end
