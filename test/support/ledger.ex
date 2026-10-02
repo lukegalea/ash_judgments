@@ -135,12 +135,23 @@ defmodule AshJudgments.Test.FailingLedger do
     attribute :mode, :atom, public?: true
     attribute :correlation_id, :uuid, public?: true
     attribute :valid_until, :utc_datetime_usec, public?: true
+    attribute :cache_key, :string, public?: true
+    attribute :record_hash, :string, public?: true
+    attribute :wire_question_hash, :string, public?: true
+    attribute :shadow_of, :uuid, public?: true
   end
 
   actions do
     create :record do
       accept [:*]
       manual AshJudgments.Test.FailingLedger.AlwaysFails
+    end
+
+    read :by_cache_key do
+      get?(true)
+
+      argument(:cache_key, :string, allow_nil?: false, public?: true)
+      filter(expr(cache_key == ^arg(:cache_key)))
     end
   end
 end

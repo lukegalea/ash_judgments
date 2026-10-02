@@ -26,29 +26,125 @@ defmodule AshJudgments.Registry.Judge do
     called before any record happens, and the record create accepts the
     answer as input (law 2). The question's `record:` option decides the
     failure posture: `:must` fails the action closed; `:best_effort`
-    logs, emits telemetry, and returns the answer.
+    logs, emits telemetry, and returns the answer;
+  - **execution modes** (AST-89) resolve per call, per process, per
+    config (see `AshJudgments.Cache.resolve_mode/1`): `:live` consults
+    the ledger's cache before calling and answers from the record on a
+    hit (no observation written); `:replay` answers strictly from the
+    ledger and raises `%AshJudgments.Cache.ReplayMiss{}` on a miss;
+    `:shadow` calls the candidate and records a `mode: :shadow` row with
+    `shadow_of`, emitting the diff — the caller receives the live answer
+    when a live record exists.
   """
 
   @moduledoc since: "0.1.0"
 
+  require Logger
+
   use Ash.Resource.Actions.Implementation
 
+  alias AshJudgments.Cache
   alias AshJudgments.Ledger
   alias AshJudgments.Profile
+  alias AshJudgments.Registry.Canonical
+  alias AshJudgments.Registry.Info
 
   @impl true
   def run(input, opts, context) do
     # The action context as a plain map (`input.context`) — the
     # Implementation.Context struct has no Access behaviour.
     ctx = input.context
+    refs = ctx[:judgments] || %{}
 
     question =
-      AshJudgments.Registry.Info.questions(input.resource)
+      Info.questions(input.resource)
       |> Enum.find(&(&1.name == Keyword.fetch!(opts, :question)))
 
     matrix? = Keyword.get(opts, :matrix?, false)
-
+    mode = Cache.resolve_mode(refs)
     state = state_for(question, input)
+    state_digest = Canonical.digest(Canonical.encode(state))
+
+    wire_question = wire_question(question)
+    wire_question_hash = Canonical.digest(Canonical.encode(wire_question))
+
+    pinned = pinned_expectation(question)
+    instrument = refs[:instrument] || %{}
+
+    key_inputs = %{
+      state_digest: state_digest,
+      model_digest: instrument[:model_digest] || pinned[:digest],
+      runtime_version: instrument[:runtime_version],
+      wire_question_hash: wire_question_hash,
+      zone_id: region()
+    }
+
+    call = %{
+      question: question,
+      input: input,
+      ctx: ctx,
+      context: context,
+      key_inputs: key_inputs,
+      state: state,
+      pinned: pinned,
+      instrument: instrument,
+      matrix?: matrix?
+    }
+
+    case mode do
+      :replay -> replay(call)
+      :shadow -> shadow(call, wire_question_hash)
+      _ -> live(call, wire_question_hash)
+    end
+  end
+
+  ## :live — consult the ledger, call on a miss
+
+  defp live(
+         %{question: question, input: input, ctx: ctx, key_inputs: key_inputs} = call,
+         wire_question_hash
+       ) do
+    ledger = ledger_resource()
+
+    with {:ok, model_spec} <- resolve_model(question, input, ctx) do
+      case ledger && Cache.lookup_live(ledger, Ledger.cache_key(key_inputs), question.ttl) do
+        nil ->
+          miss(Map.put(call, :model_spec, model_spec), wire_question_hash)
+
+        record ->
+          {:ok, answer} = Cache.rebuild_answer(record, question)
+
+          :telemetry.execute(
+            [:ash_judgments, :cache, :hit],
+            %{latency_us: 0},
+            %{
+              question_id: question.question_id,
+              observation_id: record.id,
+              mode: :live
+            }
+          )
+
+          {:ok, answer}
+      end
+    end
+  end
+
+  defp miss(
+         %{
+           question: question,
+           input: input,
+           ctx: ctx,
+           context: context,
+           key_inputs: key_inputs,
+           state: state,
+           pinned: pinned,
+           instrument: instrument
+         } =
+           call,
+         wire_question_hash
+       ) do
+    model_spec = call.model_spec
+    matrix? = call.matrix?
 
     evaluate_opts =
       if matrix? do
@@ -56,27 +152,161 @@ defmodule AshJudgments.Registry.Judge do
       else
         [state: state] |> maybe_put_question_spec(question)
       end
+      |> Keyword.put(:model, model_spec)
+      |> Keyword.put(:req_llm, req_llm_override(ctx))
 
-    with {:ok, model_spec} <- resolve_model(question, input, ctx) do
+    {latency_us, evaluate_result} =
+      :timer.tc(fn -> AshAi.Actions.Evaluate.run(input, evaluate_opts, context) end)
+
+    check_pin!(question, pinned, instrument)
+
+    with {:ok, answer} <- evaluate_result,
+         :ok <-
+           record(
+             question,
+             answer,
+             input,
+             ctx,
+             %{
+               state: state,
+               latency_us: latency_us,
+               model_spec: model_spec,
+               wire_question_hash: wire_question_hash,
+               mode: :live,
+               key_inputs: key_inputs
+             }
+           ) do
+      {:ok, answer}
+    end
+  end
+
+  ## :replay — the ledger only
+
+  defp replay(%{question: question, key_inputs: key_inputs}) do
+    ledger = ledger_resource()
+
+    record =
+      case ledger && Cache.lookup_replay(ledger, Ledger.cache_key(key_inputs)) do
+        {:ok, record} -> record
+        _ -> nil
+      end
+
+    case record do
+      nil ->
+        {:error,
+         Cache.ReplayMiss.exception(
+           cache_key: Ledger.cache_key(key_inputs),
+           question_id: question.question_id
+         )}
+
+      record ->
+        {:ok, answer} = Cache.rebuild_answer(record, question)
+        {:ok, answer}
+    end
+  end
+
+  ## :shadow — the candidate runs; the caller receives the live answer
+
+  defp shadow(
+         %{question: question, input: input, ctx: ctx, key_inputs: key_inputs, state: state} =
+           call,
+         wire_question_hash
+       ) do
+    ledger = ledger_resource()
+    live_record = ledger && Cache.lookup_live(ledger, Ledger.cache_key(key_inputs), question.ttl)
+
+    candidate_question = candidate_question(question, ctx)
+    candidate_ctx = %{ctx | judgments: Map.put(ctx[:judgments] || %{}, :mode, :live)}
+
+    with {:ok, model_spec} <- resolve_model(candidate_question, input, candidate_ctx) do
       evaluate_opts =
-        evaluate_opts
+        if call.matrix? do
+          [state: state, questions: matrix_questions(input)]
+        else
+          [state: state] |> maybe_put_question_spec(candidate_question)
+        end
         |> Keyword.put(:model, model_spec)
         |> Keyword.put(:req_llm, req_llm_override(ctx))
 
       {latency_us, evaluate_result} =
-        :timer.tc(fn -> AshAi.Actions.Evaluate.run(input, evaluate_opts, context) end)
+        :timer.tc(fn -> AshAi.Actions.Evaluate.run(input, evaluate_opts, call.context) end)
 
-      with {:ok, answer} <- evaluate_result,
-           :ok <-
-             record(question, answer, input, ctx, %{
-               state: state,
-               latency_us: latency_us,
-               model_spec: model_spec
-             }) do
-        {:ok, answer}
+      with {:ok, shadow_answer} <- evaluate_result do
+        shadow_of = if live_record, do: live_record.id, else: nil
+
+        record_shadow(
+          candidate_question,
+          shadow_answer,
+          input,
+          ctx,
+          %{
+            state: state,
+            latency_us: latency_us,
+            model_spec: model_spec,
+            wire_question_hash: wire_question_hash,
+            shadow_of: shadow_of
+          }
+        )
+
+        emit_diff(live_record, shadow_answer, question)
+
+        # The caller receives the live answer when one exists — the
+        # candidate's answer lives only in the shadow row.
+        cond do
+          live_record ->
+            {:ok, live_answer} = Cache.rebuild_answer(live_record, question)
+            {:ok, live_answer}
+
+          is_struct(shadow_answer) ->
+            {:ok, shadow_answer}
+        end
       end
     end
   end
+
+  defp candidate_question(question, ctx) do
+    case (ctx[:judgments] || %{})[:candidate_profile] do
+      nil -> question
+      name when is_atom(name) -> %{question | profile: name}
+      resolver when is_function(resolver, 2) -> %{question | profile: resolver}
+      _ -> question
+    end
+  end
+
+  defp record_shadow(question, answer, input, ctx, timing) do
+    case Ledger.Record.record(
+           question,
+           answer,
+           ctx,
+           Map.put(timing, :mode, :shadow),
+           input.context
+         ) do
+      {:ok, judgment} -> judgment
+      {:error, error} -> Logger.warning("shadow record failed: #{Exception.message(error)}")
+    end
+  end
+
+  defp emit_diff(live_record, shadow_answer, question) do
+    live_answer =
+      if live_record do
+        {:ok, answer} = Cache.rebuild_answer(live_record, question)
+        answer
+      end
+
+    diff = Cache.diff(live_answer, shadow_answer)
+
+    :telemetry.execute(
+      [:ash_judgments, :shadow, :diff],
+      %{delta_p: diff.delta_p},
+      %{
+        question_id: question.question_id,
+        value_changed: diff.value_changed,
+        shadow_of: live_record && live_record.id
+      }
+    )
+  end
+
+  ## Shared resolution
 
   defp resolve_model(question, input, context) do
     case question.profile do
@@ -147,13 +377,91 @@ defmodule AshJudgments.Registry.Judge do
     get_in(context || %{}, [:judgments, :req_llm])
   end
 
+  # The wire question: the exact object sent for this question, via the
+  # answer type's own to_question/3 (§3.3 — before the provider's
+  # normalisation). The hash feeds the §4.4 cache key and the record.
+  defp wire_question(question) do
+    criteria = question_criteria(question)
+    instructions = question_description(question)
+
+    case question.type.to_question(instructions, criteria, question.constraints) do
+      {:ok, wire} -> wire
+      _ -> %{instructions: instructions, criteria: criteria}
+    end
+  end
+
+  defp pinned_expectation(question) do
+    case question.profile do
+      name when is_atom(name) ->
+        case Profile.fetch(name) do
+          {:ok, profile} ->
+            %{
+              model: profile.model,
+              digest: resolve_digest(profile.digest)
+            }
+
+          _ ->
+            %{}
+        end
+
+      _ ->
+        %{}
+    end
+  end
+
+  defp resolve_digest({:system, var}), do: System.get_env(var)
+  defp resolve_digest(digest) when is_binary(digest), do: digest
+  defp resolve_digest(_), do: nil
+
+  # AC-5: with pin: :required, a runtime-reported model that differs from
+  # the pinned expectation fails the call. The reported identity arrives
+  # through the context's instrument metadata (the capture seam); absent
+  # metadata, there is nothing to compare and the pin rides the profile
+  # resolution + digest as today.
+  @doc false
+  # The post-call pin check, exposed for tests (AC-5's unit form).
+  def check_pin_for_test(question, pinned, instrument),
+    do: check_pin!(question, pinned, instrument)
+
+  defp check_pin!(question, pinned, instrument) do
+    if question.pin == :required do
+      reported = instrument[:model_version]
+
+      expected = pinned[:model]
+
+      if reported != nil and expected != nil and reported != expected do
+        raise Cache.PinMismatch,
+          expected: expected,
+          reported: reported,
+          question_id: question.question_id
+      end
+    end
+
+    :ok
+  end
+
+  defp ledger_resource do
+    Application.get_env(:ash_judgments, :ledger)
+  end
+
+  defp region do
+    case Ledger.region() do
+      {:ok, region} -> region
+      {:error, :missing_region} -> nil
+    end
+  end
+
   # The record posture (law 2 + ADR 0040): compliance families fail
   # closed — a failed record means no answer leaves this action — while
   # tooling families get their answer and a `[:ash_judgments, :record,
   # :failed]` telemetry event. Either way the instrument is never re-run.
   defp record(question, answer, input, ctx, timing) do
+    # The resolved mode and key ride to the recorder: the observation must
+    # carry the mode it was called under and the key the lookup used.
     # One observation per answer: a matrix reply is one answer per runtime
-    # question (RFC §5.1), sharing the request's state and latency.
+    # question (RFC §5.1), sharing the request's state, latency and key.
+    timing = Map.put_new(timing, :mode, :live)
+
     results =
       answer
       |> List.wrap()
@@ -161,9 +469,6 @@ defmodule AshJudgments.Registry.Judge do
 
     errors = Enum.filter(results, &match?({:error, _}, &1))
 
-    # The recorder already logged and emitted [:ash_judgments, :record,
-    # :failed] per failure. Compliance families fail closed — no answer
-    # leaves this action; tooling families keep their answers.
     case errors do
       [] -> :ok
       [first | _] when question.record == :must -> {:error, elem(first, 1)}

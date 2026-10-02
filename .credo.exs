@@ -14,6 +14,12 @@
       plugins: [{AshCredo, []}],
       checks: %{
         disabled: [
+          # The per-process execution-mode resolution (CORE-CACHE) reads
+          # Logger.metadata(judgments_mode:) — a metadata key this package
+          # introduces deliberately; Credo wants it pre-registered in the
+          # Logger config, which a library cannot do for its consumers.
+          {Credo.Check.Warning.MissedMetadataKeyInLoggerConfig, []},
+
           # The house style favours fully-qualified calls into Ash's Info
           # modules and cross-module helpers — they are grep-friendly and
           # keep the called surface obvious at each site, so single-use

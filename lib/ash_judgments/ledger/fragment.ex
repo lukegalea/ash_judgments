@@ -155,7 +155,17 @@ defmodule AshJudgments.Ledger.Fragment do
       writable?: true,
       public?: true,
       description:
-        "Computed by the :record change from inputs (§4.4 at v0 fidelity; see AshJudgments.Ledger.cache_key/1)."
+        "Computed by the :record change from inputs — the full §4.4 key (see AshJudgments.Cache.key/1)."
+
+    attribute :wire_question_hash, :string,
+      public?: true,
+      description:
+        "Digest of the canonical JSON of the exact question object sent (§3.3) — in the §4.4 cache key; the declared question_hash identifies the wording, this identifies the call."
+
+    attribute :shadow_of, :uuid,
+      public?: true,
+      description:
+        "Shadow rows only: the live observation this candidate call shadows (§5.6). Shadow rows are never banded and never materialise."
 
     attribute :mode, :atom,
       allow_nil?: false,
@@ -218,6 +228,8 @@ defmodule AshJudgments.Ledger.Fragment do
         :residency,
         :usage,
         :latency_us,
+        :wire_question_hash,
+        :shadow_of,
         :mode,
         :correlation_id,
         :envelope,
@@ -302,9 +314,11 @@ defmodule AshJudgments.Ledger.Changes.DeriveRecord do
     |> Ash.Changeset.before_action(fn changeset ->
       cache_key =
         Ledger.cache_key(%{
-          model_version: Ash.Changeset.get_attribute(changeset, :model_version),
-          question_hash: Ash.Changeset.get_attribute(changeset, :question_hash),
-          state_digest: Ash.Changeset.get_attribute(changeset, :state_digest)
+          state_digest: Ash.Changeset.get_attribute(changeset, :state_digest),
+          model_digest: Ash.Changeset.get_attribute(changeset, :model_digest),
+          runtime_version: Ash.Changeset.get_attribute(changeset, :runtime_version),
+          wire_question_hash: Ash.Changeset.get_attribute(changeset, :wire_question_hash),
+          zone_id: region
         })
 
       record_hash =
@@ -322,6 +336,7 @@ defmodule AshJudgments.Ledger.Changes.DeriveRecord do
           probabilities: Ash.Changeset.get_attribute(changeset, :probabilities),
           confidence: Ash.Changeset.get_attribute(changeset, :confidence),
           model_spec_requested: Ash.Changeset.get_attribute(changeset, :model_spec_requested),
+          wire_question_hash: Ash.Changeset.get_attribute(changeset, :wire_question_hash),
           model_version: Ash.Changeset.get_attribute(changeset, :model_version),
           model_digest: Ash.Changeset.get_attribute(changeset, :model_digest),
           runtime_version: Ash.Changeset.get_attribute(changeset, :runtime_version),

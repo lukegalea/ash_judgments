@@ -102,30 +102,37 @@ defmodule AshJudgments.Ledger do
   end
 
   @doc """
-  The cache key for an observation, computed ONLY from inputs (a pure
-  derived field, RFC §6.1): the model version, the question hash and the
-  state digest.
+  The §4.4 cache key, full fidelity — computed ONLY from inputs (a pure
+  derived field, RFC §6.1): the state's input hash, the model digest, the
+  runtime version, the WIRE question hash (§3.3 — what was actually sent)
+  and the zone/region. Identical on replay; different whenever any of
+  them differs.
 
-  This is the seams §3.4 / ADR 0040 key (`model digest ‖ question hash ‖
-  canonical state`) at v0 fidelity — the full §4.4 form adds the wire
-  question hash, the runtime version and the zone, all of which arrive
-  with CORE-CACHE. Changing the input set changes every key, which is why
-  the version of this computation must move with CORE-CACHE, not before.
+  The model digest is what the runtime reported when available, else the
+  profile's pinned digest — a pinned call keys on its pin, and a call the
+  runtime answered with a different model keys differently, which is the
+  pin-mismatch signal showing up in the cache too.
   """
   @spec cache_key(%{
-          required(:model_version) => String.t() | nil,
-          required(:question_hash) => String.t(),
-          required(:state_digest) => String.t()
+          required(:state_digest) => String.t(),
+          required(:model_digest) => String.t() | nil,
+          required(:runtime_version) => String.t() | nil,
+          required(:wire_question_hash) => String.t() | nil,
+          required(:zone_id) => atom() | String.t()
         }) :: String.t()
   def cache_key(%{
-        model_version: model_version,
-        question_hash: question_hash,
-        state_digest: state_digest
+        state_digest: state_digest,
+        model_digest: model_digest,
+        runtime_version: runtime_version,
+        wire_question_hash: wire_question_hash,
+        zone_id: zone_id
       }) do
     Canonical.digest(%{
       "input_hash" => state_digest,
-      "model_version" => model_version,
-      "question_hash" => question_hash
+      "model_digest" => model_digest,
+      "runtime_version" => runtime_version,
+      "wire_question_hash" => wire_question_hash,
+      "zone_id" => to_string(zone_id)
     })
   end
 

@@ -37,6 +37,7 @@ defmodule AshJudgments.Test.Note do
       pii(:minimised)
       state_projection(AshJudgments.Test.Projections.NoteText)
       state_shape(%{"text" => "string"})
+      ttl(3600)
     end
   end
 

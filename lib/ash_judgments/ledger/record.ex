@@ -87,6 +87,7 @@ defmodule AshJudgments.Ledger.Record do
   defp observation_inputs(question, answer, judge_context, timing, _context) do
     refs = judge_context[:judgments] || %{}
     instrument = refs[:instrument] || %{}
+    key_inputs = timing[:key_inputs] || %{}
     state = timing[:state]
 
     %{
@@ -105,13 +106,17 @@ defmodule AshJudgments.Ledger.Record do
       confidence: answer_confidence(question, answer),
       model_spec_requested:
         model_spec_requested(timing[:model_spec] || refs[:model_spec], question),
+      wire_question_hash: timing[:wire_question_hash],
+      # The recorded instrument identity equals the cache key's inputs —
+      # the recorded key must reproduce the lookup key exactly.
       model_version: instrument[:model_version],
-      model_digest: instrument[:model_digest],
-      runtime_version: instrument[:runtime_version],
+      model_digest: key_inputs[:model_digest],
+      runtime_version: key_inputs[:runtime_version],
       profile: profile_name(question.profile),
       residency: residency(question, refs),
       latency_us: timing[:latency_us],
-      mode: mode(judge_context),
+      shadow_of: timing[:shadow_of],
+      mode: timing[:mode] || mode(judge_context),
       correlation_id: judge_context[:correlation_id],
       valid_until: refs[:valid_until]
     }

@@ -77,9 +77,11 @@ defmodule AshJudgments.LedgerTest do
 
       assert judgment.cache_key ==
                Ledger.cache_key(%{
-                 model_version: "test-model-1.0.0",
-                 question_hash: observation_inputs()[:question_hash],
-                 state_digest: observation_inputs()[:state_digest]
+                 state_digest: observation_inputs()[:state_digest],
+                 model_digest: observation_inputs()[:model_digest],
+                 runtime_version: observation_inputs()[:runtime_version],
+                 wire_question_hash: nil,
+                 zone_id: :ca
                })
 
       refute judgment.record_hash == nil
@@ -105,27 +107,36 @@ defmodule AshJudgments.LedgerTest do
       assert second.cache_key == key_one
     end
 
-    test "the same answer and state always produce the same cache key" do
-      key =
-        Ledger.cache_key(%{
-          model_version: "m",
-          question_hash: "sha256:" <> String.duplicate("c", 64),
-          state_digest: "sha256:" <> String.duplicate("d", 64)
-        })
+    test "the same inputs always produce the same cache key; any input difference changes it (AC-3)" do
+      inputs = %{
+        state_digest: "sha256:" <> String.duplicate("d", 64),
+        model_digest: "sha256:" <> String.duplicate("c", 64),
+        runtime_version: "0.7.5",
+        wire_question_hash: "sha256:" <> String.duplicate("e", 64),
+        zone_id: :ca
+      }
 
-      assert key ==
-               Ledger.cache_key(%{
-                 model_version: "m",
-                 question_hash: "sha256:" <> String.duplicate("c", 64),
-                 state_digest: "sha256:" <> String.duplicate("d", 64)
-               })
+      key = Ledger.cache_key(inputs)
+
+      # Stable across processes and restarts: a pure function of inputs.
+      assert key == Ledger.cache_key(inputs)
+
+      # Differs whenever ANY input differs.
+      refute key ==
+               Ledger.cache_key(%{inputs | state_digest: "sha256:" <> String.duplicate("x", 64)})
+
+      refute key ==
+               Ledger.cache_key(%{inputs | model_digest: "sha256:" <> String.duplicate("x", 64)})
+
+      refute key == Ledger.cache_key(%{inputs | runtime_version: "0.7.6"})
 
       refute key ==
                Ledger.cache_key(%{
-                 model_version: "m2",
-                 question_hash: "sha256:" <> String.duplicate("c", 64),
-                 state_digest: "sha256:" <> String.duplicate("d", 64)
+                 inputs
+                 | wire_question_hash: "sha256:" <> String.duplicate("x", 64)
                })
+
+      refute key == Ledger.cache_key(%{inputs | zone_id: :us})
     end
 
     test "region is host config, never a caller input" do

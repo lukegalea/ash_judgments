@@ -8,6 +8,14 @@
 # test-only, for the sandboxed TestRepo behind the test support app.
 import Config
 
+# The execution-mode resolution reads Logger.metadata(judgments_mode:)
+# (per-process mode, CORE-CACHE). Registering the key keeps the Logger
+# backends and the static checks honest about it.
 if config_env() == :test do
   import_config "test.exs"
+
+  # The execution-mode resolution reads Logger.metadata(judgments_mode:)
+  # (per-process mode, CORE-CACHE). Registering the key keeps the Logger
+  # backends and the static checks honest about it.
+  config :logger, file_log: [metadata: [:judgments_mode]]
 end
