@@ -101,6 +101,9 @@ defmodule AshJudgments.Test.Bpmn.Domain do
   use Ash.Domain, extensions: [AshBpmn.Domain]
 
   resources do
+    # The callable's own resource: the extension's verifier requires every
+    # callable's resource to live in the declaring domain.
+    resource(AshJudgments.Test.BpmnCallables)
     resource(AshJudgments.Test.Bpmn.Definition)
     resource(AshJudgments.Test.Bpmn.Instance)
     resource(AshJudgments.Test.Bpmn.Token)

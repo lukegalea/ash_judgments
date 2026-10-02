@@ -95,6 +95,10 @@ defmodule AshJudgments.MixProject do
       {:ash_rules, github: "lukegalea/ash_rules", optional: true},
       {:ash_compliance, github: "lukegalea/ash_compliance", optional: true},
       {:ash_bpmn, github: "lukegalea/ash_bpmn", optional: true},
+      # The engine resource verifiers' policy checks want a SAT solver at
+      # compile time; without one they warn, which is fatal under
+      # --warnings-as-errors. Dev/test-only, like the engine itself.
+      {:simple_sat, "~> 0.1", only: [:dev, :test]},
       {:ash_decisions, github: "lukegalea/ash_decisions", optional: true},
       {:ash_events, "~> 0.7", optional: true},
       {:opentelemetry_ash, "~> 0.1", optional: true},
