@@ -26,6 +26,10 @@ defmodule AshJudgments.Facts.ScalarJson do
   # for floats). Deterministic encoding keeps the column's text equality
   # exactly equal to term equality, so the set evaluator's data-layer
   # filter is neither a superset nor a subset — it is the strict check.
+  # nil passes through (the column is nullable — a review or omit banding
+  # proposes no fact value, §7.1); symmetric with cast_stored's nil.
+  def cast_input(nil, _constraints), do: {:ok, nil}
+
   def cast_input(value, _constraints) do
     case encode(value) do
       {:ok, text} -> {:ok, text}

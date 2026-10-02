@@ -48,7 +48,9 @@ defmodule AshJudgments.BpmnBridgeTest do
 
     on_exit(fn ->
       Application.delete_env(:ash_judgments, :ledger)
-      Application.delete_env(:ash_judgments, :region)
+      # Restore, don't delete: :region is stack config from config/test.exs;
+      # other tests' ledger rows need it configured.
+      Application.put_env(:ash_judgments, :region, :ca)
       Application.delete_env(:ash_judgments, :test_judgments_ctx)
     end)
 

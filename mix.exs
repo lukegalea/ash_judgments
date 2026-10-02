@@ -150,7 +150,8 @@ defmodule AshJudgments.MixProject do
           "usage-rules.md",
           "docs/instrument-profiles.md",
           "docs/question-registry.md",
-          "docs/bridge-bpmn.md"
+          "docs/bridge-bpmn.md",
+          "docs/bridge-evidence.md"
         ] ++ extra_docs()
     ]
   end
