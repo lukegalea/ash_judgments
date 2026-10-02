@@ -168,12 +168,12 @@ defmodule AshJudgments.BridgeEvidenceTest do
       assert entry.action == "judged"
     end
 
-    # The extraction kind is spelled :evidence in the frozen v0 schema
-    # (`:extraction` is the extraction-type ticket's name for it).
     test "an extraction observation carries its source atom ids only, never quotations" do
+      # `:extraction` is the frozen enum's spelling (verified against
+      # schema.json's kind enum and cond_kind_extraction).
       observation =
         record_observation(
-          answer_kind: :evidence,
+          answer_kind: :extraction,
           value: "found",
           atom_ids: ["contract/§4/deadline", "contract/§7/penalty"]
         )
@@ -247,8 +247,8 @@ defmodule AshJudgments.BridgeEvidenceTest do
         [],
         [answer_kind: :choice, value: "follow_up"],
         [answer_kind: :score, value: "4"],
-        [answer_kind: :evidence, value: "found", atom_ids: ["contract/§4"]],
-        [answer_kind: :evidence, value: "ambiguous", atom_ids: []]
+        [answer_kind: :extraction, value: "found", atom_ids: ["contract/§4"]],
+        [answer_kind: :extraction, value: "ambiguous", atom_ids: []]
       ]
 
       for overrides <- kinds, banding? <- [false, true] do

@@ -14,7 +14,12 @@ defmodule AshJudgments.Registry.Dsl do
 
   @moduledoc since: "0.1.0"
 
-  @answer_types [AshAi.Evaluate.Noul, AshAi.Evaluate.Choice, AshAi.Evaluate.Score]
+  @answer_types [
+    AshAi.Evaluate.Noul,
+    AshAi.Evaluate.Choice,
+    AshAi.Evaluate.Score,
+    AshJudgments.Evaluate.Extraction
+  ]
 
   @question_schema [
     name: [
@@ -26,18 +31,23 @@ defmodule AshJudgments.Registry.Dsl do
       type: {:in, @answer_types},
       required: true,
       doc:
-        "The answer type: `AshAi.Evaluate.Noul`, `AshAi.Evaluate.Choice` or `AshAi.Evaluate.Score`. The `Evidence` type ships with UP-AI-EVIDENCE-TYPE."
+        "The answer type: `AshAi.Evaluate.Noul`, `AshAi.Evaluate.Choice`, `AshAi.Evaluate.Score` or `AshJudgments.Evaluate.Extraction` (the typed extraction: status + value + source ids). The `Evidence` type ships with UP-AI-EVIDENCE-TYPE."
     ],
     constraints: [
       type: :keyword_list,
       default: [],
       doc:
-        "Answer-type constraints — for a Choice, `of:` (an `Ash.Type.Enum` module or an option list); for a Score, `levels:`."
+        "Answer-type constraints — for a Choice, `of:` (an `Ash.Type.Enum` module or an option list); for a Score, `levels:`; for an Extraction, `of:` (REQUIRED — the value's Ash type + inner `constraints:`) and `source_enum:` (an explicit atom-id list)."
     ],
     options_from: [
       type: {:tuple, [{:spark, Ash.Resource}, :atom]},
       doc:
         "`{Resource, :attribute}` — Choice options derived from that attribute's `one_of` or `Ash.Type.Enum` values at compile time (the same `one_of` that validates the attribute is the option list of the Choice)."
+    ],
+    source_enum_from: [
+      type: {:tuple, [{:spark, Ash.Resource}, :atom]},
+      doc:
+        "`{Resource, :attribute}` — Extraction source_ids narrowed to that attribute's values at compile time (the packet's atom ids; `options_from`'s sibling). One of this or `constraints source_enum:` is REQUIRED for an Extraction."
     ],
     abstain_option: [
       type: :atom,

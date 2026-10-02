@@ -44,7 +44,7 @@ What upstream left out is what this package adds, one namespace per ticket:
 
 | Neighbour | Role |
 |---|---|
-| `ash_ai` + `req_llm` | the call: evaluate, answer types, transport (upstream) |
+| `ash_ai` + `req_llm` | the call: evaluate, answer types, transport (upstream) — plus this package's `Evaluate.Extraction` (typed value + status + cited atom ids) |
 | **`ash_judgments`** | profiles, question registry, ledger, cache/replay/shadow, telemetry, calibration, the bridges |
 | `ash_decisions` | the DMN band tables that turn a distribution into an admission |
 | `ash_rules` | crisp rule evaluation over the facts the ledger admits |

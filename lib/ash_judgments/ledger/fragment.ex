@@ -110,7 +110,10 @@ defmodule AshJudgments.Ledger.Fragment do
     attribute :answer_kind, :atom,
       allow_nil?: false,
       public?: true,
-      constraints: [one_of: [:noul, :choice, :score, :evidence]]
+      # The frozen record's closed kind enum (§5.5, schema.json):
+      # `evidence` is the §5.4 evidence-work kind, `extraction` the
+      # extract→verify kind.
+      constraints: [one_of: [:noul, :choice, :score, :evidence, :extraction]]
 
     attribute :value, :string,
       public?: true,

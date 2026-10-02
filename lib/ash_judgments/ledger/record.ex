@@ -84,6 +84,13 @@ defmodule AshJudgments.Ledger.Record do
   ## Observation inputs — built only from what the caller and the judge
   ## already held. Nothing here calls anything.
 
+  # The test seam over the pure input builder (the check_pin_for_test
+  # precedent): the record wiring is asserted without a registry question.
+  @doc false
+  def observation_inputs_for_test(question, answer, judge_context, timing) do
+    observation_inputs(question, answer, judge_context, timing, %{})
+  end
+
   defp observation_inputs(question, answer, judge_context, timing, _context) do
     refs = judge_context[:judgments] || %{}
     instrument = refs[:instrument] || %{}
@@ -101,6 +108,7 @@ defmodule AshJudgments.Ledger.Record do
       state_digest: Canonical.digest(Canonical.encode(state)),
       state_ref: sanitize_map(refs[:state_ref]),
       answer_kind: answer_kind(question),
+      atom_ids: answer_atom_ids(question, answer, refs),
       value: answer_value(question, answer),
       probabilities: answer_probabilities(question, answer),
       confidence: answer_confidence(question, answer),
@@ -161,6 +169,16 @@ defmodule AshJudgments.Ledger.Record do
     end
   end
 
+  # The extraction's cited atoms ARE the record's atoms_considered
+  # (§5.5): source ids only, never quotations (law 8). Other kinds keep
+  # the caller-supplied atom_ids (the evidence-work path).
+  defp answer_atom_ids(question, answer, refs) do
+    case answer_kind(question) do
+      :extraction -> get_answer_field(answer, :source_ids) || refs[:atom_ids]
+      _kind -> refs[:atom_ids]
+    end
+  end
+
   defp answer_confidence(question, answer) do
     case answer_kind(question) do
       :noul -> nil
@@ -175,6 +193,13 @@ defmodule AshJudgments.Ledger.Record do
   defp present(value, :choice), do: to_string(value)
   defp present(value, :evidence), do: to_string(value)
   defp present(value, :score), do: decimal_string(value)
+
+  # An extraction's cast value: binaries ride as-is (a string extraction is
+  # its own collapsed value); composites store as their JSON text — the
+  # §7.4 fact chain reads it back through the facts table's scalar-JSON
+  # discipline.
+  defp present(value, :extraction) when is_binary(value), do: value
+  defp present(value, :extraction), do: Jason.encode!(value)
   defp present(value, _kind), do: to_string(value)
 
   defp decimal(nil), do: nil

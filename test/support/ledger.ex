@@ -123,6 +123,7 @@ defmodule AshJudgments.Test.FailingLedger do
     attribute :state_digest, :string, allow_nil?: false, public?: true
     attribute :state_ref, :map, public?: true
     attribute :answer_kind, :atom, allow_nil?: false, public?: true
+    attribute :atom_ids, {:array, :string}, public?: true
     attribute :value, :string, public?: true
     attribute :probabilities, :map, public?: true
     attribute :confidence, :decimal, public?: true

@@ -67,6 +67,64 @@ abstain option (`:insufficient` by default) appended as a first-class
 answer (law 7). Renaming an enum value changes the options and therefore
 the hash.
 
+### The contract extraction
+
+The fourth kind is the package's own `AshJudgments.Evaluate.Extraction`
+(implements upstream `AshAi.Evaluate.Answer`; upstream ash_ai is
+untouched). One question extracts one typed value:
+
+```elixir
+question :contract_deadline do
+  type AshJudgments.Evaluate.Extraction
+  instructions "Extract the deadline stated in the contract."
+  version 1
+  family :contract_extraction
+  profile :test_local
+  constraints(of: :string)
+  source_enum_from {MyApp.Contract, :packet_atoms}
+end
+```
+
+The answer is `%Extraction{status, value, source_ids}`:
+
+- `status` is `:found | :not_found | :ambiguous` — **required**, and
+  `value` is non-nil **iff** `found`. There is no `confidence`
+  field at all, so the frozen `confidence: const null` holds by
+  construction (ADR 0046 point 5).
+- `value` casts through the declared `of:` type (+ inner `constraints:`)
+  — a `:date`, a `match`-constrained string, an enum atom. A cast
+  failure is REFUSED (`cast_failed` upstream, raw recorded), never
+  repaired.
+- `source_ids` are the cited atom ids — ids only, never quotations
+  (law 8) — validated against the packet's enum: `source_enum_from
+  {Resource, :attribute}` resolves at compile time (the `options_from`
+  sibling), an explicit `constraints source_enum:` list also works, and
+  a declaration with neither is refused by a verifier. The fabricated-
+  citation guard is that enum (CLIN-34: 0.0 on the narrowed path).
+- Composite values are allowed as ONE typed value with ONE status; a
+  multi-field certificate packet is several extraction questions in one
+  request, one observation row each.
+
+**Identity ([L]2)**: the declared value schema rides `criteria` (the
+frozen §3.2 hash object has no value-type slot); the question's
+`options` are the status enum `["found", "not_found", "ambiguous"]`.
+Zero frozen-hash change; `wire_schema_hash` covers the per-call
+narrowing (`Extraction.output_schema/1` — no `confidence` key anywhere).
+
+**Extract→verify pairs** (ADR 0044): the pipeline shares one
+`envelope.correlation_id` across both calls; the verification Noul
+carries `evidence_ids: ["observation:<extraction-uuid>"]` and its
+`source_ids` are the extraction's cited atoms only; the banding joins
+the pair through `observation_ids: [extraction_id, verification_id]`
+(§7.1). No forward pointer is written on the immutable extraction row —
+"find the verification for X" is a read.
+
+**FEEL inputs** (`Bridge.Dmn.inputs/2` — key set unchanged from
+AST-92): `<q>__present`, `<q>__observation_id`, `<q>__value` (JSON
+text), `<q>__observation_id_verified`, `<q>__status` — where `__status`
+is the EXTRACTION'S OWN status read off the answer ([L]3); the
+verification rides its own question key.
+
 ## Identity
 
 - **`question_id`** — `judgment:v0:<Module>#judgments/<name>`
@@ -136,11 +194,12 @@ the affected resources recompile (the transformer declares it an
 | Option | Type | Default | Notes |
 |---|---|---|---|
 | `name` | atom | required | slot name (in the id, not the hash) |
-| `type` | `AshAi.Evaluate.Noul \| Choice \| Score` | required | `Evidence` ships with UP-AI-EVIDENCE-TYPE |
+| `type` | `AshAi.Evaluate.Noul \| Choice \| Score \| AshJudgments.Evaluate.Extraction` | required | `Evidence` ships with UP-AI-EVIDENCE-TYPE |
 | `instructions` | string \| structured | required | wording; in the hash as declared |
 | `criteria` | map \| list | — | per-option descriptions; in the hash |
-| `constraints` | keyword | `[]` | `of:` for Choice, `levels:` for Score |
+| `constraints` | keyword | `[]` | `of:` for Choice, `levels:` for Score, `of:` (required) + `source_enum:` for Extraction |
 | `options_from` | `{Resource, :attribute}` | — | Choice options from the attribute's constraint |
+| `source_enum_from` | `{Resource, :attribute}` | — | Extraction source_ids narrowed to the packet's atom ids (required for an Extraction, or explicit `source_enum:`) |
 | `abstain_option` | atom | `:insufficient` | appended to Choice options |
 | `version` | pos integer | required | monotonic per question id |
 | `family` | atom | required | calibration grouping (law 5); outside the hash |

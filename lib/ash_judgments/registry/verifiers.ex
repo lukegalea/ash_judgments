@@ -112,6 +112,122 @@ defmodule AshJudgments.Registry.Verifiers.VerifyFamily do
   end
 end
 
+defmodule AshJudgments.Registry.Verifiers.VerifyExtractionSource do
+  @moduledoc """
+  An Extraction question names its packet's atom ids.
+
+  `source_ids` are constrained on the wire to the packet's atom ids —
+  the fabricated-citation guard (CLIN-34: 0.0 on the narrowed path). A
+  question with no narrowing at all cannot make that promise, so the
+  declaration is refused: name `source_enum_from {Resource, :attribute}`
+  (resolved at compile time, `options_from`'s sibling) or an explicit
+  `constraints source_enum:` list. When both are declared, the explicit
+  list must be a subset of the source — the same discipline as the
+  Choice options verifier.
+  """
+
+  @moduledoc since: "0.1.0"
+
+  use Spark.Dsl.Verifier
+  alias Spark.Dsl.Transformer
+
+  @impl true
+  def verify(dsl_state) do
+    module = Transformer.get_persisted(dsl_state, :module)
+
+    errors =
+      dsl_state
+      |> Transformer.get_entities([:judgments])
+      |> Enum.flat_map(&source_errors(&1, module))
+
+    if errors == [], do: :ok, else: {:error, errors}
+  end
+
+  defp source_errors(%{type: AshJudgments.Evaluate.Extraction} = question, module) do
+    explicit = constraint(question, :source_enum)
+
+    cond do
+      is_nil(constraint(question, :of)) ->
+        [
+          Spark.Error.DslError.exception(
+            module: module,
+            path: [:judgments, question.name, :constraints],
+            message:
+              "an Extraction question needs `constraints of:` — the value's Ash type (a :string, a :date, an enum …)"
+          )
+        ]
+
+      is_nil(question.source_enum_from) and not source_enum_list?(explicit) ->
+        [
+          Spark.Error.DslError.exception(
+            module: module,
+            path: [:judgments, question.name, :constraints],
+            message:
+              "an Extraction question needs `source_enum_from {Resource, :attribute}` or an explicit " <>
+                "`constraints source_enum:` list — source_ids are constrained on the wire to the packet's atom ids"
+          )
+        ]
+
+      source_enum_list?(explicit) and question.source_enum_from != nil ->
+        {resource, attribute_name} = question.source_enum_from
+        source = source_values(resource, attribute_name)
+        overflow = Enum.reject(explicit, &(&1 in source))
+
+        if overflow == [] do
+          []
+        else
+          [
+            Spark.Error.DslError.exception(
+              module: module,
+              path: [:judgments, question.name, :constraints],
+              message:
+                "explicit source ids #{inspect(overflow)} are not in the source constraint " <>
+                  "#{inspect(resource)}.#{attribute_name} (#{inspect(source)}); " <>
+                  "source_ids may only cite what the packet admits"
+            )
+          ]
+        end
+
+      true ->
+        []
+    end
+  end
+
+  defp source_errors(_question, _module), do: []
+
+  # Constraints arrive as a keyword list from the DSL; a map rides the
+  # same access.
+  defp constraint(%{constraints: constraints}, key) when is_list(constraints),
+    do: constraints[key]
+
+  defp constraint(%{constraints: constraints}, key) when is_map(constraints),
+    do: constraints[key]
+
+  defp constraint(_question, _key), do: nil
+
+  defp source_enum_list?(list), do: is_list(list) and list != []
+
+  defp source_values(resource, attribute_name) do
+    attribute =
+      Enum.find(Ash.Resource.Info.attributes(resource), &(&1.name == attribute_name))
+
+    cond do
+      attribute == nil ->
+        []
+
+      is_list(attribute.constraints[:one_of]) ->
+        Enum.map(attribute.constraints[:one_of], &to_string/1)
+
+      true ->
+        Code.ensure_loaded!(attribute.type)
+
+        if function_exported?(attribute.type, :values, 0),
+          do: Enum.map(attribute.type.values(), &to_string/1),
+          else: []
+    end
+  end
+end
+
 defmodule AshJudgments.Registry.Verifiers.VerifyOptionsSubset do
   @moduledoc """
   Explicit Choice options are a subset of the source constraint.

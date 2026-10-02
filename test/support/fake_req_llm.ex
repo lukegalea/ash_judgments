@@ -28,9 +28,33 @@ defmodule AshJudgments.Test.FakeReqLLM do
     case qtype(question) do
       :score -> canned_score()
       :choice -> canned_choice()
+      :extraction -> canned_extraction(question)
       _kind -> %{"probability" => Application.get_env(:ash_judgments, :test_probability, 0.9)}
     end
   end
+
+  # An extraction replies with the real reply shape: the value honours the
+  # declared `of` type, the status vocabulary, the ids inside the enum.
+  defp canned_extraction(question) do
+    of = get_in(question, [:constraints, :of]) || get_in(question, ["constraints", "of"])
+
+    enum =
+      get_in(question, [:constraints, :source_enum]) ||
+        get_in(question, ["constraints", "source_enum"])
+
+    %{
+      "status" => "found",
+      "value" => canned_value(of),
+      "source_ids" => (enum && List.first(enum) && [List.first(enum)]) || ["a01"]
+    }
+  end
+
+  defp canned_value(nil), do: "synthetic"
+  defp canned_value(:string), do: "synthetic"
+  defp canned_value(:boolean), do: true
+  defp canned_value(:integer), do: 80
+  defp canned_value(:decimal), do: "80.5"
+  defp canned_value(_other), do: "synthetic"
 
   # Upstream keeps the question type as an atom in memory.
   defp qtype(question) when is_map(question) do

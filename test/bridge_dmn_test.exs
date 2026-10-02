@@ -107,18 +107,23 @@ defmodule AshJudgments.BridgeDmnTest do
       assert inputs["appointment_note_summary__level"] == "Minor"
     end
 
-    test "extraction: no probabilities, no confidence; pairs pass both observation ids and status" do
-      extraction_question = extraction_probe_question()
+    test "extraction: no probabilities, no confidence; the pair passes both observation ids" do
+      extraction_question = extraction_question()
+
+      answer = %AshJudgments.Evaluate.Extraction{
+        status: :found,
+        value: "2027-03-31",
+        source_ids: ["contract/§4/deadline"]
+      }
 
       inputs =
         Dmn.inputs(
           [
             %{
               question: extraction_question,
-              answer: struct(AshAi.Evaluate.Noul, probability: 0.5),
+              answer: answer,
               observation_id: "eeeeeeee-1111-4111-8111-111111111111",
-              paired_with: "eeeeeeee-2222-4222-8222-222222222222",
-              status: :found
+              paired_with: "eeeeeeee-2222-4222-8222-222222222222"
             }
           ],
           opts()
@@ -126,13 +131,33 @@ defmodule AshJudgments.BridgeDmnTest do
 
       refute Enum.any?(inputs, fn {k, _v} -> k =~ "p_" end)
       refute Enum.any?(inputs, fn {k, _v} -> k =~ "confidence" end)
-      assert inputs["extraction_probe__value"] == "null"
+      assert inputs["extraction_probe__value"] == ~s("2027-03-31")
       assert inputs["extraction_probe__observation_id"] == "eeeeeeee-1111-4111-8111-111111111111"
 
       assert inputs["extraction_probe__observation_id_verified"] ==
                "eeeeeeee-2222-4222-8222-222222222222"
 
+      # [L]3: `__status` is the EXTRACTION'S OWN status, read off the
+      # answer struct — the caller cannot smuggle the verification's
+      # status in through the map any more.
       assert inputs["extraction_probe__status"] == "found"
+    end
+
+    test "extraction: not_found and ambiguous carry a null value" do
+      extraction_question = extraction_question()
+
+      for status <- [:not_found, :ambiguous] do
+        answer = %AshJudgments.Evaluate.Extraction{status: status, value: nil, source_ids: []}
+
+        inputs =
+          Dmn.inputs(
+            [%{question: extraction_question, answer: answer, observation_id: @observation}],
+            opts()
+          )
+
+        assert inputs["extraction_probe__value"] == "null"
+        assert inputs["extraction_probe__status"] == to_string(status)
+      end
     end
 
     test "missing answers are explicit present=false markers, never absent keys" do
@@ -156,10 +181,11 @@ defmodule AshJudgments.BridgeDmnTest do
       assert inputs["jurisdiction"] == "ca"
     end
 
-    defp extraction_probe_question do
-      # A v0 probe question standing in for the future extraction answer
-      # type (UP-AI-VETO-adjacent); the bridge only needs name + type key.
-      %{name: :extraction_probe, type: AshJudgments.Test.ProbeTypes.Extraction, constraints: []}
+    defp extraction_question do
+      # The real extraction declaration (the placeholder's deferral closed
+      # with the type): the bridge needs the type key and the answer's
+      # own fields.
+      %{name: :extraction_probe, type: AshJudgments.Evaluate.Extraction, constraints: []}
     end
   end
 

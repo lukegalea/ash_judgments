@@ -206,8 +206,9 @@ defmodule AshJudgments.Bridge.Dmn do
 
   defp flatten_extraction(answer_map, answer, key, base) do
     # ADR 0046 point 5: an extraction carries no probabilities and no
-    # confidence. Extract→verify pairs pass BOTH observation ids and the
-    # verification's status.
+    # confidence. Extract→verify pairs pass BOTH observation ids — and
+    # `__status` is the EXTRACTION'S OWN status, read from the answer
+    # ([L]3): the verification is its own question and rides its own key.
     extraction = %{
       "#{key}__value" => Jason.encode!(value_of(answer)),
       "#{key}__observation_id_verified" =>
@@ -215,7 +216,7 @@ defmodule AshJudgments.Bridge.Dmn do
     }
 
     extraction =
-      case Map.get(answer_map, :status) do
+      case status_of(answer) do
         nil -> extraction
         status -> Map.put(extraction, "#{key}__status", to_string(status))
       end
@@ -249,6 +250,10 @@ defmodule AshJudgments.Bridge.Dmn do
   defp confidence_of(answer) when is_struct(answer), do: Map.get(answer, :confidence)
   defp confidence_of(answer) when is_map(answer), do: Map.get(answer, :confidence)
   defp confidence_of(_), do: nil
+
+  defp status_of(answer) when is_struct(answer), do: Map.get(answer, :status)
+  defp status_of(answer) when is_map(answer), do: Map.get(answer, :status)
+  defp status_of(_), do: nil
 
   defp declared_options(question) do
     case question.constraints[:of] do

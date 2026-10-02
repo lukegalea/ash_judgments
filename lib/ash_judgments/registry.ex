@@ -64,6 +64,7 @@ defmodule AshJudgments.Registry do
     ],
     verifiers: [
       AshJudgments.Registry.Verifiers.VerifyOptionsSubset,
+      AshJudgments.Registry.Verifiers.VerifyExtractionSource,
       AshJudgments.Registry.Verifiers.VerifyFamily,
       AshJudgments.Registry.Verifiers.VerifyPiiProjection,
       AshJudgments.Registry.Verifiers.VerifyRecordPin,

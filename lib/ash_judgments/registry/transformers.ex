@@ -120,6 +120,12 @@ defmodule AshJudgments.Registry.Transformers do
   defp resolve_options(%{type: AshAi.Evaluate.Noul}, _module, _dsl_state),
     do: {:ok, [true, false]}
 
+  # [L]2: an extraction's identity options are the STATUS enum — the value
+  # type rides criteria. The packet's source-id enum is narrowed into the
+  # wire schema (Extraction.output_schema/1), not the question identity.
+  defp resolve_options(%{type: AshJudgments.Evaluate.Extraction}, _module, _dsl_state),
+    do: {:ok, Enum.map(AshJudgments.Evaluate.Extraction.statuses(), &Atom.to_string/1)}
+
   defp resolve_options(%{type: AshAi.Evaluate.Score} = question, module, _dsl_state) do
     case question.constraints[:levels] do
       [_ | _] = levels ->
@@ -339,7 +345,30 @@ defmodule AshJudgments.Registry.Transformers do
        when is_atom(of),
        do: [of: of]
 
+  # The extraction's judge action return type carries the declared value
+  # type and the narrowed source enum — the constraint that validates the
+  # attribute is the constraint the record holds (constraints arrive as a
+  # keyword list from the DSL; a map rides the same access).
+  defp return_constraints(%{type: AshJudgments.Evaluate.Extraction} = question) do
+    inner = declared_constraint(question, :constraints) || []
+
+    base = [of: declared_constraint(question, :of), constraints: inner]
+
+    case declared_constraint(question, :source_enum) do
+      nil -> base
+      enum -> Keyword.put(base, :source_enum, enum)
+    end
+  end
+
   defp return_constraints(_), do: []
+
+  defp declared_constraint(%{constraints: constraints}, key) when is_list(constraints),
+    do: constraints[key]
+
+  defp declared_constraint(%{constraints: constraints}, key) when is_map(constraints),
+    do: constraints[key]
+
+  defp declared_constraint(_question, _key), do: nil
 
   defp judge_name(question), do: :"judge_#{question.name}"
   defp matrix_name(question), do: :"judge_#{question.name}_matrix"
@@ -351,6 +380,10 @@ defmodule AshJudgments.Registry.Transformers do
     do: "Judged question #{question.name} (family #{question.family})"
 
   ## Generated tools (ash_ai)
+
+  # The error pass-through: an earlier step's failure must surface as its
+  # own DSL error, not a function-clause crash in this step.
+  defp generate_tools({:error, error}, _dsl, _module), do: {:error, error}
 
   defp generate_tools({:ok, questions, dsl_state}, _dsl, _module) do
     tools =

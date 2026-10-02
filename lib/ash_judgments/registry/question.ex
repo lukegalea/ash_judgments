@@ -20,6 +20,7 @@ defmodule AshJudgments.Registry.Question do
     :type,
     :constraints,
     :options_from,
+    :source_enum_from,
     :abstain_option,
     :instructions,
     :criteria,

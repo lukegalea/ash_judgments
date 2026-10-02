@@ -60,6 +60,13 @@ defmodule AshJudgments.Bridge.Bpmn do
         |> Map.put(question_key <> "__value", to_string(value_of(answer)))
         |> Map.put(question_key <> "__confidence", decimal_string(confidence_of(answer)))
 
+      :extraction ->
+        # The extraction's pair signal is its verification's; the token
+        # carries the typed value and the status.
+        base
+        |> Map.put(question_key <> "__value", value_scalar(value_of(answer)))
+        |> Map.put(question_key <> "__status", to_string(Map.get(answer, :status)))
+
       _kind ->
         base
     end
@@ -81,6 +88,13 @@ defmodule AshJudgments.Bridge.Bpmn do
     |> Macro.underscore()
     |> String.to_existing_atom()
   end
+
+  # A composite value does not promote (the scalar-promotion discipline):
+  # it rides as its JSON text, still a scalar string.
+  defp value_scalar(nil), do: nil
+  defp value_scalar(value) when is_binary(value), do: value
+  defp value_scalar(value) when is_number(value) or is_boolean(value), do: value
+  defp value_scalar(value), do: Jason.encode!(value)
 
   defp probability_of(answer) when is_struct(answer), do: Map.get(answer, :probability)
   defp probability_of(answer) when is_map(answer), do: Map.get(answer, :probability)
