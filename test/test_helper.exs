@@ -12,7 +12,8 @@
   AshJudgments.Test.InstrumentProbe,
   AshJudgments.Test.Judgment,
   AshJudgments.Test.HumanVerdict,
-  AshJudgments.Test.EventLog
+  AshJudgments.Test.EventLog,
+  AshJudgments.Test.Fact
 ]
 |> Enum.each(&Code.ensure_loaded!/1)
 

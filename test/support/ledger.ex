@@ -42,7 +42,7 @@ defmodule AshJudgments.Test.ClearLedger do
 
   @impl true
   def clear_records!(_opts) do
-    for table <- ~w(test_judgments test_human_verdicts) do
+    for table <- ~w(test_judgments test_human_verdicts test_facts) do
       AshJudgments.TestRepo.query!("DELETE FROM " <> table, [])
     end
 

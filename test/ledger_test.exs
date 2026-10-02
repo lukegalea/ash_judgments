@@ -19,6 +19,14 @@ defmodule AshJudgments.LedgerTest do
   alias AshJudgments.Registry.Canonical
 
   setup do
+    # A real (non-transactional) reset: leftovers from debug runs would
+    # otherwise sit in the ledger forever.
+    Ecto.Adapters.SQL.Sandbox.checkout(AshJudgments.TestRepo, sandbox: false)
+
+    for table <- ~w(test_judgments test_human_verdicts test_facts test_event_log) do
+      AshJudgments.TestRepo.query!("DELETE FROM " <> table)
+    end
+
     Ecto.Adapters.SQL.Sandbox.checkout(AshJudgments.TestRepo)
     Application.put_env(:ash_judgments, :region, :ca)
     on_exit(fn -> Application.delete_env(:ash_judgments, :region) end)
@@ -366,6 +374,11 @@ defmodule AshJudgments.LedgerTest do
     test "replaying the log rebuilds byte-identical rows and calls no model" do
       judgment = record_through_judge()
       snapshot = Map.from_struct(judgment)
+
+      %{rows: events} =
+        AshJudgments.TestRepo.query!("SELECT resource::text, action FROM test_event_log")
+
+      assert events == [["Elixir.AshJudgments.Test.Judgment", "record"]]
 
       AshJudgments.Test.EventLog
       |> Ash.ActionInput.for_action(:replay, %{})

@@ -95,5 +95,31 @@ defmodule AshJudgments.Repo.Migrations.Ledger do
     end
 
     create index(:test_event_log, [:record_id])
+
+    create table(:test_facts, primary_key: false) do
+      add :id, :uuid, null: false, default: fragment("gen_random_uuid()"), primary_key: true
+      add :recorded_at, :utc_datetime_usec, null: false
+
+      add :subject, :map, null: false
+      add :subject_type, :text, null: false
+      add :subject_id, :text, null: false
+
+      add :predicate, :text, null: false
+      add :value, :map, null: false
+      add :holds, :boolean, null: false
+
+      add :scope, :map
+      add :subject_state_digest, :text
+      add :valid_until, :utc_datetime_usec
+
+      add :admission_grade, :text, null: false
+      add :admission_id, :uuid
+      add :superseded_by, :uuid
+    end
+
+    # §7.4 normative 4: the set evaluator's plans read by predicate and
+    # subject; a partial index on current facts is the host's tuning.
+    create index(:test_facts, [:predicate, :subject_type, :subject_id])
+    create index(:test_facts, [:subject])
   end
 end

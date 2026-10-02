@@ -28,5 +28,6 @@ defmodule AshJudgments.Test.Domain do
     resource AshJudgments.Test.HumanVerdict
     resource AshJudgments.Test.EventLog
     resource AshJudgments.Test.FailingLedger
+    resource AshJudgments.Test.Fact
   end
 end

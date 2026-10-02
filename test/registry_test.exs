@@ -335,6 +335,14 @@ defmodule AshJudgments.RegistryTest do
     @describetag :db
 
     setup do
+      # A real (non-transactional) reset: leftovers from earlier runs would
+      # otherwise sit in the ledger.
+      Ecto.Adapters.SQL.Sandbox.checkout(AshJudgments.TestRepo, sandbox: false)
+
+      for table <- ~w(test_judgments test_human_verdicts test_facts test_event_log) do
+        AshJudgments.TestRepo.query!("DELETE FROM " <> table)
+      end
+
       Ecto.Adapters.SQL.Sandbox.checkout(AshJudgments.TestRepo)
 
       # The judge records into the test host's ledger (CORE-LEDGER): the

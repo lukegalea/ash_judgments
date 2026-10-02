@@ -133,6 +133,16 @@ What works today:
   judge actions record through it: `record: :must` fails closed,
   `:best_effort` returns the answer and emits
   `[:ash_judgments, :record, :failed]`.
+- **The facts surface and query reads** (`AshJudgments.Facts`,
+  `AshJudgments.Query`) — the materialised-facts fragment (RFC §7.4: subject,
+  predicate, value as JSON, scope, freshness digests, validity,
+  admission grade, supersession) whose `subject`/`predicate`/`value`
+  attributes are the `AshRules.Evaluator.Set` resource contract; the
+  materialiser (admissions and human verdicts keep facts in sync — human
+  entries win, omitted writes no fact, idempotent, replay-equivalent); the
+  derived tri-state/status reads (membership is derived, never stored; stale
+  and expired read `unknown` and queue for reassessment); and the bounded
+  `assess` selection with a priority seam for S1-56's retrieval.
 - `AshJudgments.Availability` — the optional-dependency contract above.
 - Module stubs for the remaining ticket wave, each with its scope in the moduledoc:
   `Cache` (AST-89), `Telemetry` (AST-90), `Calibration` (AST-91),
@@ -195,12 +205,13 @@ check, format, the iron-laws judge, tests, docs validation).
 
 ## Status
 
-**Profiles, the question registry and the ledger are real; the cache, telemetry and
-bridges are not yet.** The package contract, the availability contract, the profile
-layer (AST-86), the question registry DSL (AST-87) and the judgment ledger (AST-88:
-replay-safe fragments, human verdicts, the must/best-effort postures) ship; the
-remaining namespaces are stubs on purpose — each names its ticket (AST-89…AST-95)
-and ships no feature logic until that ticket lands.
+**Profiles, the registry, the ledger and the facts/query surface are real; the
+cache, telemetry and bridges are not yet.** The package contract, the availability
+contract, the profile layer (AST-86), the question registry DSL (AST-87), the
+judgment ledger (AST-88) and the facts/query surface (S1-53: materialised facts,
+tri-state/status/freshness reads, assess, materialisation) ship; the remaining
+namespaces are stubs on purpose — each names its ticket (AST-89…AST-95) and ships
+no feature logic until that ticket lands.
 
 **Reversibility (thesis 6).** Tier 3 — first-party, accepted, not on hex; confined to its
 own namespace and the host resources that include its fragments. The seam is upstream:
