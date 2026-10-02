@@ -218,48 +218,56 @@ defmodule AshJudgments.Registry.Judge do
     candidate_question = candidate_question(question, ctx)
     candidate_ctx = %{ctx | judgments: Map.put(ctx[:judgments] || %{}, :mode, :live)}
 
+    with {:ok, model_spec, shadow_answer, latency_us} <-
+           candidate_run(candidate_question, input, candidate_ctx, call, state) do
+      shadow_of = if live_record, do: live_record.id, else: nil
+
+      record_shadow(candidate_question, shadow_answer, input, ctx, %{
+        state: state,
+        latency_us: latency_us,
+        model_spec: model_spec,
+        wire_question_hash: wire_question_hash,
+        shadow_of: shadow_of
+      })
+
+      emit_diff(live_record, shadow_answer, question)
+
+      # The caller receives the live answer when one exists — the
+      # candidate's answer lives only in the shadow row.
+      cond do
+        live_record ->
+          {:ok, live_answer} = Cache.rebuild_answer(live_record, question)
+          {:ok, live_answer}
+
+        is_struct(shadow_answer) ->
+          {:ok, shadow_answer}
+      end
+    end
+  end
+
+  # The candidate call for a shadow run: resolve the candidate's spec,
+  # run upstream through the host's judge context, and time it.
+  # Returns {:ok, model_spec, shadow_answer, latency_us}.
+  defp candidate_run(candidate_question, input, candidate_ctx, call, state) do
+    evaluate_opts_base =
+      if call.matrix? do
+        [state: state, questions: matrix_questions(input)]
+      else
+        [state: state] |> maybe_put_question_spec(candidate_question)
+      end
+
     with {:ok, model_spec} <- resolve_model(candidate_question, input, candidate_ctx) do
       evaluate_opts =
-        if call.matrix? do
-          [state: state, questions: matrix_questions(input)]
-        else
-          [state: state] |> maybe_put_question_spec(candidate_question)
-        end
+        evaluate_opts_base
         |> Keyword.put(:model, model_spec)
-        |> Keyword.put(:req_llm, req_llm_override(ctx))
+        |> Keyword.put(:req_llm, req_llm_override(candidate_ctx))
 
       {latency_us, evaluate_result} =
         :timer.tc(fn -> AshAi.Actions.Evaluate.run(input, evaluate_opts, call.context) end)
 
-      with {:ok, shadow_answer} <- evaluate_result do
-        shadow_of = if live_record, do: live_record.id, else: nil
-
-        record_shadow(
-          candidate_question,
-          shadow_answer,
-          input,
-          ctx,
-          %{
-            state: state,
-            latency_us: latency_us,
-            model_spec: model_spec,
-            wire_question_hash: wire_question_hash,
-            shadow_of: shadow_of
-          }
-        )
-
-        emit_diff(live_record, shadow_answer, question)
-
-        # The caller receives the live answer when one exists — the
-        # candidate's answer lives only in the shadow row.
-        cond do
-          live_record ->
-            {:ok, live_answer} = Cache.rebuild_answer(live_record, question)
-            {:ok, live_answer}
-
-          is_struct(shadow_answer) ->
-            {:ok, shadow_answer}
-        end
+      case evaluate_result do
+        {:ok, shadow_answer} -> {:ok, model_spec, shadow_answer, latency_us}
+        {:error, error} -> {:error, error}
       end
     end
   end

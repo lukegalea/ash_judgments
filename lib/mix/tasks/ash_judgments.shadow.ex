@@ -119,9 +119,8 @@ defmodule Mix.Tasks.AshJudgments.Shadow do
     results =
       candidates
       |> Enum.map(fn judgment ->
-        with {:ok, state} <- apply(rm, rf, [judgment.state_digest | ra]) do
-          {:ok, apply(sm, sf, [judgment, candidate, state | sa])}
-        else
+        case apply(rm, rf, [judgment.state_digest | ra]) do
+          {:ok, state} -> {:ok, apply(sm, sf, [judgment, candidate, state | sa])}
           _ -> {:skipped, judgment}
         end
       end)
