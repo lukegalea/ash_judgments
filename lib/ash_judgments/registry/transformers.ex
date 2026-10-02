@@ -245,19 +245,33 @@ defmodule AshJudgments.Registry.Transformers do
 
   defp generate_actions({:ok, questions}, dsl_state, _module) do
     Enum.reduce_while(questions, {:ok, questions, dsl_state}, fn question, {:ok, qs, dsl} ->
-      with {:ok, judge} <- build_judge_action(question),
-           {:ok, matrix} <- build_matrix_action(question) do
-        dsl =
-          dsl
-          |> Transformer.add_entity([:actions], judge)
-          |> Transformer.add_entity([:actions], matrix)
-
-        {:cont, {:ok, qs, dsl}}
-      else
+      case add_question_actions(question, dsl) do
+        {:ok, dsl} -> {:cont, {:ok, qs, dsl}}
         {:error, error} -> {:halt, {:error, error}}
       end
     end)
   end
+
+  defp add_question_actions(question, dsl) do
+    with {:ok, judge} <- build_judge_action(question),
+         {:ok, matrix} <- build_matrix_action(question),
+         dsl <-
+           dsl
+           |> Transformer.add_entity([:actions], judge)
+           |> Transformer.add_entity([:actions], matrix),
+         {:ok, dsl, signal} <- maybe_build_signals(question, dsl) do
+      {:ok, if(signal, do: Transformer.add_entity(dsl, [:actions], signal), else: dsl)}
+    end
+  end
+
+  defp maybe_build_signals(%{bpmn_callable?: true} = question, dsl) do
+    case build_signals_action(question) do
+      {:ok, action} -> {:ok, dsl, action}
+      {:error, error} -> {:halt, {:error, error}}
+    end
+  end
+
+  defp maybe_build_signals(_question, dsl), do: {:ok, dsl, nil}
 
   defp build_judge_action(question) do
     Builder.build_action(:action, judge_name(question),
@@ -270,6 +284,24 @@ defmodule AshJudgments.Registry.Transformers do
       run: {AshJudgments.Registry.Judge, [question: question.name]}
     )
   end
+
+  defp build_signals_action(question) do
+    Builder.build_action(:action, signals_name(question),
+      description:
+        question_description(question) <>
+          " (BPMN signals: a STRING-KEYED, SCALAR-VALUED map — the judgment id is the token's join back to the ledger row)",
+      returns: :map,
+      arguments: [
+        Builder.build_action_argument(:input, :map, allow_nil?: false, public?: true)
+      ],
+      run: {AshJudgments.Registry.Judge.Signals, [question: question.name]}
+    )
+  end
+
+  # The literal `:"..."` form: a compile-time interpolation over the
+  # registry's own declared names, not a runtime string (law 10 — the atom
+  # table is compile-time-bounded here, exactly like judge_name/1 above).
+  defp signals_name(question), do: :"judge_#{question.name}_signals"
 
   defp build_matrix_action(question) do
     Builder.build_action(:action, matrix_name(question),

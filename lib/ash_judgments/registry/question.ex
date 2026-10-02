@@ -33,6 +33,7 @@ defmodule AshJudgments.Registry.Question do
     :ttl,
     :pin,
     :expose_as_tool?,
+    :bpmn_callable?,
     # derived
     :options,
     :state_contract,

@@ -161,8 +161,11 @@ What works today:
   hash that pins a finding's inputs (`docs/bridge-ash-rules.md`).
 - `AshJudgments.Availability` — the optional-dependency contract above.
 - Module stubs for the remaining ticket wave, each with its scope in the moduledoc:
-  `Cache` (AST-89), `Telemetry` (AST-90), `Calibration` (AST-91),
-  `Bridge.Dmn` (AST-92), `Bridge.Bpmn` (AST-94), `Bridge.Evidence` (AST-95).
+  `Telemetry` (AST-90), `Calibration` (AST-91), `Bridge.Evidence` (AST-95).
+- `Bridge.Bpmn` (AST-94) — the BPMN `ash:call` seam: `bpmn_callable? true` generates
+  `judge_<name>_signals` actions returning a string-keyed, scalar-valued map (the
+  answer's scalars plus the judgment id) that an `ash:call` service task promotes
+  onto a token; `docs/bridge-bpmn.md`.
 
 ## What it never does
 
@@ -220,13 +223,15 @@ check, format, the iron-laws judge, tests, docs validation).
 
 ## Status
 
-**Profiles, the registry, the ledger and the facts/query surface are real; the
-cache, telemetry and bridges are not yet.** The package contract, the availability
-contract, the profile layer (AST-86), the question registry DSL (AST-87), the
-judgment ledger (AST-88) and the facts/query surface (S1-53: materialised facts,
-tri-state/status/freshness reads, assess, materialisation) ship; the remaining
-namespaces are stubs on purpose — each names its ticket (AST-89…AST-95) and ships
-no feature logic until that ticket lands.
+**Profiles, the registry, the ledger, the facts/query surface, the cache and two of
+the bridges are real; telemetry, calibration and the evidence bridge are not yet.**
+The package contract, the availability contract, the profile layer (AST-86), the
+question registry DSL (AST-87), the judgment ledger (AST-88), the facts/query surface
+(S1-53: materialised facts, tri-state/status/freshness reads, assess, materialisation),
+the execution modes (AST-89: live/replay/shadow over the §4.4 cache key), the ash_rules
+bridge (AST-93) and the BPMN bridge (AST-94: judge callables as `ash:call` signals) ship;
+the remaining namespaces are stubs on purpose — each names its ticket (AST-90…AST-95)
+and ships no feature logic until that ticket lands.
 
 **Reversibility (thesis 6).** Tier 3 — first-party, accepted, not on hex; confined to its
 own namespace and the host resources that include its fragments. The seam is upstream:

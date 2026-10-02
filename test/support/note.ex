@@ -38,6 +38,7 @@ defmodule AshJudgments.Test.Note do
       state_projection(AshJudgments.Test.Projections.NoteText)
       state_shape(%{"text" => "string"})
       ttl(3600)
+      bpmn_callable?(true)
     end
   end
 

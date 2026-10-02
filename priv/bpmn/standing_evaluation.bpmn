@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+SPDX-FileCopyrightText: 2026 ash_judgments contributors <https://github.com/lukegalea/ash_judgments>
+
+SPDX-License-Identifier: MIT
+
+Example standing-evaluation process (AST-94): the judged signals via
+ash:call, a band-table step on the promoted signals, a gateway on the
+band, the human review lane, end. Synthetic process; the fixture gates
+the ash_bpmn interpreter integration test. The promote block is the ONLY
+thing that lands on the token: flat scalars, per the scalar-promotion
+discipline (answer structs never promote).
+-->
+<bpmn2:definitions xmlns:bpmn2="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                   xmlns:ash="https://github.com/lukegalea/ash_bpmn/ns"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   id="Definitions_standing_eval"
+                   targetNamespace="https://github.com/lukegalea/ash_bpmn/ns">
+  <bpmn2:process id="Process_standing_evaluation" name="Standing evaluation" isExecutable="true">
+
+    <bpmn2:startEvent id="Start" name="Every hour">
+      <bpmn2:outgoing>F_start</bpmn2:outgoing>
+    </bpmn2:startEvent>
+
+    <!-- The judged signals. The callable wraps the subject's text into
+         the projection input; the generated `judge_<name>_signals`
+         action runs the SAME judge path as `judge_<name>` (state
+         projection, profile resolution, recorder) and returns the
+         string-keyed scalar map. Only the declared signals promote. -->
+    <bpmn2:serviceTask id="JudgeSignals" name="Judge the note (signals)">
+      <bpmn2:extensionElements>
+        <ash:call ref="AshJudgments.Test.Bpmn.Domain.judge_note_signals"/>
+        <ash:inputs>
+          <ash:input name="input" from="subject.body"/>
+        </ash:inputs>
+        <ash:promote>
+          <ash:signal name="notes_follow_up__p"/>
+          <ash:signal name="notes_follow_up__judgment_id" required="true"/>
+        </ash:promote>
+      </bpmn2:extensionElements>
+      <bpmn2:incoming>F_start</bpmn2:incoming>
+      <bpmn2:outgoing>F_judged</bpmn2:outgoing>
+    </bpmn2:serviceTask>
+
+    <!-- The band table: the host's band resolver reads the promoted
+         signal off the token's routing and returns the flat scalar band
+         the gateway routes on (AST-92's band-table ref shape). -->
+    <bpmn2:serviceTask id="BandTable" name="Apply the band table">
+      <bpmn2:extensionElements>
+        <ash:call ref="AshJudgments.Test.Bpmn.Domain.apply_band"/>
+        <ash:inputs>
+          <ash:input name="probability" from="routing.notes_follow_up__p"/>
+        </ash:inputs>
+        <ash:promote>
+          <ash:signal name="band" required="true"/>
+        </ash:promote>
+      </bpmn2:extensionElements>
+      <bpmn2:incoming>F_judged</bpmn2:incoming>
+      <bpmn2:outgoing>F_banded</bpmn2:outgoing>
+    </bpmn2:serviceTask>
+
+    <bpmn2:exclusiveGateway id="BandGateway" name="Band?" default="F_omit">
+      <bpmn2:incoming>F_banded</bpmn2:incoming>
+      <bpmn2:outgoing>F_admit</bpmn2:outgoing>
+      <bpmn2:outgoing>F_review</bpmn2:outgoing>
+      <bpmn2:outgoing>F_omit</bpmn2:outgoing>
+    </bpmn2:exclusiveGateway>
+
+    <bpmn2:endEvent id="Admitted">
+      <bpmn2:extensionElements><ash:taskConfig outcome="admitted"/></bpmn2:extensionElements>
+      <bpmn2:incoming>F_admit</bpmn2:incoming>
+    </bpmn2:endEvent>
+
+    <bpmn2:userTask id="ReviewLane" name="Human review">
+      <bpmn2:extensionElements>
+        <ash:taskConfig>
+          <ash:candidates>
+            <ash:candidate kind="role" of="judgments_reviewers"/>
+          </ash:candidates>
+          <ash:outcomes>
+            <ash:outcome name="confirm"/>
+            <ash:outcome name="reject"/>
+          </ash:outcomes>
+        </ash:taskConfig>
+      </bpmn2:extensionElements>
+      <bpmn2:incoming>F_review</bpmn2:incoming>
+      <bpmn2:outgoing>F_reviewed</bpmn2:outgoing>
+    </bpmn2:userTask>
+
+    <bpmn2:endEvent id="Reviewed">
+      <bpmn2:extensionElements><ash:taskConfig outcome="reviewed"/></bpmn2:extensionElements>
+      <bpmn2:incoming>F_reviewed</bpmn2:incoming>
+    </bpmn2:endEvent>
+
+    <bpmn2:endEvent id="Omitted">
+      <bpmn2:extensionElements><ash:taskConfig outcome="omitted"/></bpmn2:extensionElements>
+      <bpmn2:incoming>F_omit</bpmn2:incoming>
+    </bpmn2:endEvent>
+
+    <bpmn2:sequenceFlow id="F_start" sourceRef="Start" targetRef="JudgeSignals"/>
+    <bpmn2:sequenceFlow id="F_judged" sourceRef="JudgeSignals" targetRef="BandTable"/>
+    <bpmn2:sequenceFlow id="F_banded" sourceRef="BandTable" targetRef="BandGateway"/>
+    <bpmn2:sequenceFlow id="F_admit" sourceRef="BandGateway" targetRef="Admitted">
+      <bpmn2:conditionExpression xsi:type="bpmn2:tFormalExpression" language="feel">routing.band = "admit"</bpmn2:conditionExpression>
+    </bpmn2:sequenceFlow>
+    <bpmn2:sequenceFlow id="F_review" sourceRef="BandGateway" targetRef="ReviewLane">
+      <bpmn2:conditionExpression xsi:type="bpmn2:tFormalExpression" language="feel">routing.band = "review"</bpmn2:conditionExpression>
+    </bpmn2:sequenceFlow>
+    <bpmn2:sequenceFlow id="F_omit" sourceRef="BandGateway" targetRef="Omitted"/>
+    <bpmn2:sequenceFlow id="F_reviewed" sourceRef="ReviewLane" targetRef="Reviewed"/>
+  </bpmn2:process>
+</bpmn2:definitions>

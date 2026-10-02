@@ -15,7 +15,14 @@
   AshJudgments.Test.EventLog,
   AshJudgments.Test.Fact,
   AshJudgments.Test.Banding,
-  AshJudgments.Test.Certification
+  AshJudgments.Test.Certification,
+  AshJudgments.Test.Bpmn.Definition,
+  AshJudgments.Test.Bpmn.Instance,
+  AshJudgments.Test.Bpmn.Token,
+  AshJudgments.Test.Bpmn.HumanTask,
+  AshJudgments.Test.Bpmn.TaskCandidate,
+  AshJudgments.Test.Bpmn.ProcessEvent,
+  AshJudgments.Test.BpmnCallables
 ]
 |> Enum.each(&Code.ensure_loaded!/1)
 

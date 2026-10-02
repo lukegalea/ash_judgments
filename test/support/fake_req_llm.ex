@@ -28,7 +28,7 @@ defmodule AshJudgments.Test.FakeReqLLM do
     case qtype(question) do
       :score -> canned_score()
       :choice -> canned_choice()
-      _kind -> %{"probability" => 0.9}
+      _kind -> %{"probability" => Application.get_env(:ash_judgments, :test_probability, 0.9)}
     end
   end
 

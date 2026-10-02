@@ -109,6 +109,12 @@ defmodule AshJudgments.Registry.Dsl do
       default: false,
       doc:
         "Generates an ash_ai `tool` entry for the judge action, so agents can call the question over MCP. Read-only by construction."
+    ],
+    bpmn_callable?: [
+      type: :boolean,
+      default: false,
+      doc:
+        "Generates a `judge_<name>_signals` action returning a STRING-KEYED, SCALAR-VALUED map (the answer's scalars plus the judgment id) — the shape a BPMN `ash:call` may promote onto a token. Answer structs never promote (the scalar-promotion discipline, AST-94)."
     ]
   ]
 

@@ -68,4 +68,18 @@ config :ash, default_string_length_count: :codepoints
 config :ash, :validate_domain_config_inclusion?, false
 config :ash, :validate_domain_resource_inclusion?, false
 
+# The BPMN engine's test configuration (AST-94 integration): the judged
+# signals fixture runs through the interpreter with the Oban shim inline
+# and the callable refs resolving against the test domains. ash_bpmn is
+# a DEV/TEST-ONLY optional dep — no lib/ module references it.
+config :ash_bpmn, oban_testing: :inline
+config :ash_bpmn, assignment_resolver: AshJudgments.Test.BpmnResolver
+
+config :ash_bpmn,
+  ash_domains: [
+    AshJudgments.Test.Domain,
+    AshJudgments.Test.Bpmn.Domain
+  ]
+
+config :ash, :validate_domain_resource_inclusion?, false
 config :logger, level: :warning

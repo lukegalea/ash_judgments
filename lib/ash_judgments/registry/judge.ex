@@ -54,14 +54,24 @@ defmodule AshJudgments.Registry.Judge do
     # The action context as a plain map (`input.context`) — the
     # Implementation.Context struct has no Access behaviour.
     ctx = input.context
-    refs = ctx[:judgments] || %{}
 
-    question =
-      Info.questions(input.resource)
-      |> Enum.find(&(&1.name == Keyword.fetch!(opts, :question)))
+    case judge_and_record(question_for(input.resource, opts), input, ctx, context, opts) do
+      {:ok, answer, _judgment_ids} -> {:ok, answer}
+      {:error, error, _partial} -> {:error, error}
+    end
+  end
 
+  @doc """
+  Judges AND records, returning both the typed answer and the ids of the
+  observations written for this call (one per answer; a cache hit carries
+  the EXISTING observation's id — the caller references it, S1-24 §6.3).
+  The signals actions are built on this: the judgment id is a BPMN
+  token's join back to the full ledger row. Replay misses raise
+  `AshJudgments.Cache.ReplayMiss`.
+  """
+  def judge_and_record(question, input, ctx, context, opts) do
     matrix? = Keyword.get(opts, :matrix?, false)
-    mode = Cache.resolve_mode(refs)
+    mode = Cache.resolve_mode(ctx[:judgments] || %{})
     state = state_for(question, input)
     state_digest = Canonical.digest(Canonical.encode(state))
 
@@ -69,7 +79,7 @@ defmodule AshJudgments.Registry.Judge do
     wire_question_hash = Canonical.digest(Canonical.encode(wire_question))
 
     pinned = pinned_expectation(question)
-    instrument = refs[:instrument] || %{}
+    instrument = (ctx[:judgments] || %{})[:instrument] || %{}
 
     key_inputs = %{
       state_digest: state_digest,
@@ -91,11 +101,34 @@ defmodule AshJudgments.Registry.Judge do
       matrix?: matrix?
     }
 
-    case mode do
-      :replay -> replay(call)
-      :shadow -> shadow(call, wire_question_hash)
-      _ -> live(call, wire_question_hash)
+    dispatch_mode(mode, call, wire_question_hash)
+  end
+
+  # Each mode returns the same shape: `{:ok, answer, judgment_ids}` or
+  # `{:error, error, partial}` — the error path never carries ids, because
+  # nothing was recorded for the caller to reference.
+  defp dispatch_mode(:replay, call, _hash) do
+    case replay(call) do
+      {:ok, answer, ids} -> {:ok, answer, ids}
+      {:error, miss} -> {:error, miss, []}
     end
+  end
+
+  defp dispatch_mode(:shadow, call, hash) do
+    {:ok, answer, ids} = shadow(call, hash)
+    {:ok, answer, ids}
+  end
+
+  defp dispatch_mode(_mode, call, hash) do
+    case live(call, hash) do
+      {:ok, answer, ids} -> {:ok, answer, ids}
+      {:error, error} -> {:error, error, []}
+    end
+  end
+
+  defp question_for(resource, opts) do
+    Info.questions(resource)
+    |> Enum.find(&(&1.name == Keyword.fetch!(opts, :question)))
   end
 
   ## :live — consult the ledger, call on a miss
@@ -124,7 +157,9 @@ defmodule AshJudgments.Registry.Judge do
             }
           )
 
-          {:ok, answer}
+          # A cache hit writes no observation: the caller references the
+          # existing one (§6.3).
+          {:ok, answer, [record.id]}
       end
     end
   end
@@ -153,7 +188,7 @@ defmodule AshJudgments.Registry.Judge do
         [state: state] |> maybe_put_question_spec(question)
       end
       |> Keyword.put(:model, model_spec)
-      |> Keyword.put(:req_llm, req_llm_override(ctx))
+      |> maybe_put_req_llm(req_llm_override(ctx))
 
     {latency_us, evaluate_result} =
       :timer.tc(fn -> AshAi.Actions.Evaluate.run(input, evaluate_opts, context) end)
@@ -161,7 +196,7 @@ defmodule AshJudgments.Registry.Judge do
     check_pin!(question, pinned, instrument)
 
     with {:ok, answer} <- evaluate_result,
-         :ok <-
+         {:ok, judgment_ids} <-
            record(
              question,
              answer,
@@ -176,7 +211,7 @@ defmodule AshJudgments.Registry.Judge do
                key_inputs: key_inputs
              }
            ) do
-      {:ok, answer}
+      {:ok, answer, judgment_ids}
     end
   end
 
@@ -201,7 +236,7 @@ defmodule AshJudgments.Registry.Judge do
 
       record ->
         {:ok, answer} = Cache.rebuild_answer(record, question)
-        {:ok, answer}
+        {:ok, answer, []}
     end
   end
 
@@ -237,10 +272,10 @@ defmodule AshJudgments.Registry.Judge do
       cond do
         live_record ->
           {:ok, live_answer} = Cache.rebuild_answer(live_record, question)
-          {:ok, live_answer}
+          {:ok, live_answer, []}
 
         is_struct(shadow_answer) ->
-          {:ok, shadow_answer}
+          {:ok, shadow_answer, []}
       end
     end
   end
@@ -260,7 +295,7 @@ defmodule AshJudgments.Registry.Judge do
       evaluate_opts =
         evaluate_opts_base
         |> Keyword.put(:model, model_spec)
-        |> Keyword.put(:req_llm, req_llm_override(candidate_ctx))
+        |> maybe_put_req_llm(req_llm_override(candidate_ctx))
 
       {latency_us, evaluate_result} =
         :timer.tc(fn -> AshAi.Actions.Evaluate.run(input, evaluate_opts, call.context) end)
@@ -385,6 +420,13 @@ defmodule AshJudgments.Registry.Judge do
     get_in(context || %{}, [:judgments, :req_llm])
   end
 
+  # An explicit nil would shadow upstream's default client (`Keyword.get(opts,
+  # :req_llm, ReqLLM)` treats a present-but-nil key as the value) — a host
+  # running without a judgments context must get the real client, not
+  # `nil.evaluate/4`.
+  defp maybe_put_req_llm(opts, nil), do: opts
+  defp maybe_put_req_llm(opts, req_llm), do: Keyword.put(opts, :req_llm, req_llm)
+
   # The wire question: the exact object sent for this question, via the
   # answer type's own to_question/3 (§3.3 — before the provider's
   # normalisation). The hash feeds the §4.4 cache key and the record.
@@ -476,11 +518,14 @@ defmodule AshJudgments.Registry.Judge do
       |> Enum.map(&Ledger.Record.record(question, &1, ctx, timing, input.context))
 
     errors = Enum.filter(results, &match?({:error, _}, &1))
+    ids = for {:ok, judgment} <- results, do: judgment.id
 
     case errors do
-      [] -> :ok
+      [] -> {:ok, ids}
       [first | _] when question.record == :must -> {:error, elem(first, 1)}
-      _ -> :ok
+      # A best-effort failure is logged and emitted; the ids that DID land
+      # still come back (partial recording is a fact about the world).
+      _ -> {:ok, ids}
     end
   end
 end
