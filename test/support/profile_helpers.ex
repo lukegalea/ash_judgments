@@ -50,7 +50,10 @@ defmodule AshJudgments.Test.ProfileHelpers do
   — with every mutation restored on exit.
   """
   def configure_stack(_context) do
-    keys = [:region, :model_routes, :residency_policy, :test_residency_decisions, :profiles]
+    # The profile REGISTRY (:profiles, from config/test.exs) is left alone:
+    # the judge tests resolve :test_local through it. Only the resolution
+    # GUARDS get a clean slate, with every mutation restored on exit.
+    keys = [:region, :model_routes, :residency_policy, :test_residency_decisions]
     restore = capture_env(keys)
     Application.put_env(:ash_judgments, :region, :ca)
     Enum.each(List.delete(keys, :region), &Application.delete_env(:ash_judgments, &1))

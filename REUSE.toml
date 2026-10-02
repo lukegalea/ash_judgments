@@ -15,6 +15,7 @@ path = [
   "REUSE.toml",
   "README.md",
   "mix.lock",
+  "priv/judgments/*.json",
   "scripts/extra-docs.baseline",
   "scripts/iron-laws.baseline.json",
   "usage-rules.md",

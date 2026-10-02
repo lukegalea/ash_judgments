@@ -16,6 +16,22 @@ end
 
 config :ash_judgments, ecto_repos: [AshJudgments.TestRepo]
 
+# The stack the registry's judge tests resolve profiles against (the
+# profile resolution itself is AST-86's suite). A synthetic model id: the
+# package pins no default model.
+config :ash_judgments, region: :ca
+
+config :ash_judgments, :profiles, [
+  [
+    name: :test_local,
+    model: "test-model",
+    base_url: {:system, "JUDGE_BASE_URL"},
+    api_key: {:system, "JUDGE_API_KEY", "local"},
+    residency: :in_cluster,
+    region: :ca
+  ]
+]
+
 # The same env pattern ash_agent_tools' test config uses, so the devenv-wrapped
 # invocation from ash_enterprise works unchanged:
 #

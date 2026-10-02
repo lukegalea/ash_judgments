@@ -105,10 +105,14 @@ defmodule AshJudgments.MixProject do
       # graphs all the same. (Same resolution as ash_agent_tools.)
       {:ash_postgres, "~> 2.13", optional: true},
 
-      # Dev-only: the laws judge (`mix ash_agent.laws`) and the Ash
-      # introspection mandate in AGENTS.md ride on ash_agent_tools. Dev-only
-      # and runtime-false: consumers never inherit it.
-      {:ash_agent_tools, github: "lukegalea/ash_agent_tools", only: :dev, runtime: false},
+      # Dev-and-test-only: the laws judge (`mix ash_agent.laws`) and the Ash
+      # introspection mandate in AGENTS.md ride on ash_agent_tools — and the
+      # test env gets `mix ash_agent.describe` over the test support
+      # resources (the registry's section-surfacing check, AST-87/AC-6).
+      # runtime: false and the hex package `files:` keep it out of
+      # consumers' graphs either way.
+      {:ash_agent_tools,
+       github: "lukegalea/ash_agent_tools", only: [:dev, :test], runtime: false},
 
       # Dev hygiene: static analysis (credo with the ash_credo plugin), type
       # checking, docs.
@@ -133,7 +137,13 @@ defmodule AshJudgments.MixProject do
   defp docs do
     [
       main: "readme",
-      extras: ["README.md", "usage-rules.md", "docs/instrument-profiles.md"] ++ extra_docs()
+      extras:
+        [
+          "README.md",
+          "usage-rules.md",
+          "docs/instrument-profiles.md",
+          "docs/question-registry.md"
+        ] ++ extra_docs()
     ]
   end
 

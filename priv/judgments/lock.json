@@ -1,0 +1,10 @@
+{
+  "judgment:v0:AshJudgments.Test.Appointment#judgments/triage_urgency": {
+    "hash": "sha256:9275214e0ed8ce2d887717285717ff15b7e4ecc8b6df174c0057e85709585179",
+    "version": 1
+  },
+  "judgment:v0:AshJudgments.Test.Note#judgments/notes_follow_up": {
+    "hash": "sha256:f0db7a5411aaeb6684c780a945153c888540dda9d912975bb2e5f16514f70da6",
+    "version": 1
+  }
+}

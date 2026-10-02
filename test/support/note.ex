@@ -2,6 +2,19 @@
 #
 # SPDX-License-Identifier: MIT
 
+defmodule AshJudgments.Test.Projections.NoteText do
+  @moduledoc """
+  The notes question's projection: the model sees the note text and
+  nothing else. Defined above the resource it serves — the transformer
+  reads `shape/0` while the resource compiles.
+  """
+
+  @behaviour AshJudgments.Registry.StateProjection
+
+  @impl true
+  def project(input, _context), do: %{"text" => input.arguments.input["text"]}
+end
+
 defmodule AshJudgments.Test.Note do
   @moduledoc """
   A synthetic free-text subject — the kind of resource a System One question
@@ -11,7 +24,21 @@ defmodule AshJudgments.Test.Note do
 
   use Ash.Resource,
     domain: AshJudgments.Test.Domain,
-    data_layer: AshPostgres.DataLayer
+    data_layer: AshPostgres.DataLayer,
+    extensions: [AshAi, AshJudgments.Registry]
+
+  judgments do
+    question :notes_follow_up do
+      type AshAi.Evaluate.Noul
+      instructions("Does the note describe a follow-up commitment?")
+      version(1)
+      family(:clinic_notes)
+      profile(:test_local)
+      pii(:minimised)
+      state_projection(AshJudgments.Test.Projections.NoteText)
+      state_shape(%{"text" => "string"})
+    end
+  end
 
   postgres do
     table "test_notes"

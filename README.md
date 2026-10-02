@@ -119,9 +119,14 @@ What works today:
   and the digest module (`docs/instrument-profiles.md` is the full topic).
 - `AshJudgments.ResidencyPolicy` — the tenant residency behaviour and its
   deny-by-silence default.
+- **The question registry DSL** (`AshJudgments.Registry`) — declared, typed,
+  versioned, content-hashed questions over any resource (law 4): options drawn
+  from constraints, state projections with declared shapes, generated
+  `judge_<name>` actions delegating to upstream `evaluate`, compile-time
+  verifiers, and the version-bump lock (`docs/question-registry.md`).
 - `AshJudgments.Availability` — the optional-dependency contract above.
 - Module stubs for the remaining ticket wave, each with its scope in the moduledoc:
-  `Registry` (AST-87), `Ledger` (AST-88), `Cache` (AST-89), `Telemetry` (AST-90),
+  `Ledger` (AST-88), `Cache` (AST-89), `Telemetry` (AST-90),
   `Calibration` (AST-91), `Bridge.Dmn` (AST-92), `Bridge.Rules` (AST-93),
   `Bridge.Bpmn` (AST-94), `Bridge.Evidence` (AST-95).
 
@@ -181,11 +186,12 @@ check, format, the iron-laws judge, tests, docs validation).
 
 ## Status
 
-**Scaffold, plus instrument profiles.** The package contract, the availability contract,
-the profile layer (AST-86: residency, pinning, tenant opt-out, warm-up, the dual contract
-test), the test support app and CI are real; the remaining namespaces are stubs on
-purpose — each names its ticket (AST-87…AST-95) and ships no feature logic until that
-ticket lands.
+**Profiles and the question registry are real; the ledger and bridges are not yet.**
+The package contract, the availability contract, the profile layer (AST-86), and the
+question registry DSL (AST-87: hashed identity, options from constraints, generated
+judge actions, verifiers, the version-bump lock) ship; the remaining namespaces are
+stubs on purpose — each names its ticket (AST-88…AST-95) and ships no feature logic
+until that ticket lands.
 
 **Reversibility (thesis 6).** Tier 3 — first-party, accepted, not on hex; confined to its
 own namespace and the host resources that include its fragments. The seam is upstream:
