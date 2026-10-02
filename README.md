@@ -160,8 +160,10 @@ What works today:
   FactBuilder over the materialised facts table, and the fact-snapshot
   hash that pins a finding's inputs (`docs/bridge-ash-rules.md`).
 - `AshJudgments.Availability` — the optional-dependency contract above.
-- Module stubs for the remaining ticket wave, each with its scope in the moduledoc:
-  `Telemetry` (AST-90), `Calibration` (AST-91).
+- `Telemetry` (AST-90) — the event registry (`[:ash_judgments, ...]` with region,
+  residency and disclosure data), handler-side OTel spans (`ai.disclosure` on
+  sub-processor calls), `Telemetry.Metrics` definitions, and the production
+  model-version capture; `docs/telemetry.md`.
 - `Bridge.Bpmn` (AST-94) — the BPMN `ash:call` seam: `bpmn_callable? true` generates
   `judge_<name>_signals` actions returning a string-keyed, scalar-valued map (the
   answer's scalars plus the judgment id) that an `ash:call` service task promotes
@@ -227,15 +229,15 @@ check, format, the iron-laws judge, tests, docs validation).
 
 ## Status
 
-**Profiles, the registry, the ledger, the facts/query surface, the cache and all four
-bridges are real; telemetry and calibration are not yet.** The package contract, the
+**Profiles, the registry, the ledger, the facts/query surface, the cache, the four
+bridges and telemetry are real; calibration is not yet.** The package contract, the
 availability contract, the profile layer (AST-86), the question registry DSL (AST-87),
 the judgment ledger (AST-88), the facts/query surface (S1-53: materialised facts,
 tri-state/status/freshness reads, assess, materialisation), the execution modes (AST-89:
 live/replay/shadow over the §4.4 cache key), and the bridges — ash_rules (AST-93), DMN
 band tables (AST-92), BPMN judge callables (AST-94), evidence mapping (AST-95) — ship;
-the remaining namespaces are stubs on purpose — each names its ticket (AST-90, AST-91)
-and ships no feature logic until that ticket lands.
+the remaining namespace is a stub on purpose — it names its ticket (AST-91) and ships
+no feature logic until that ticket lands.
 
 **Reversibility (thesis 6).** Tier 3 — first-party, accepted, not on hex; confined to its
 own namespace and the host resources that include its fragments. The seam is upstream:

@@ -99,6 +99,10 @@ defmodule AshJudgments.MixProject do
       # compile time; without one they warn, which is fatal under
       # --warnings-as-errors. Dev/test-only, like the engine itself.
       {:simple_sat, "~> 0.1", only: [:dev, :test]},
+      # The Metrics DEFINITIONS module's builder (the events themselves
+      # need only :telemetry, a hard dep). Optional: hosts without it
+      # degrade to the events.
+      {:telemetry_metrics, "~> 1.0", optional: true},
       {:ash_decisions, github: "lukegalea/ash_decisions", optional: true},
       {:ash_events, "~> 0.7", optional: true},
       {:opentelemetry_ash, "~> 0.1", optional: true},
@@ -151,7 +155,8 @@ defmodule AshJudgments.MixProject do
           "docs/instrument-profiles.md",
           "docs/question-registry.md",
           "docs/bridge-bpmn.md",
-          "docs/bridge-evidence.md"
+          "docs/bridge-evidence.md",
+          "docs/telemetry.md"
         ] ++ extra_docs()
     ]
   end

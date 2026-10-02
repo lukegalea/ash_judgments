@@ -124,18 +124,15 @@ defmodule AshJudgments.Facts.Materialiser do
           materialise_inputs(decision, grade)
         )
 
-      if changeset.valid? == false do
-        IO.puts(
-          :stderr,
-          "DBG invalid materialise: " <>
-            inspect(changeset.errors |> Enum.map(&Exception.message/1))
-        )
-
-        IO.puts(:stderr, "DBG inputs: " <> inspect(changeset.params, limit: 12))
-      end
-
       changeset
       |> Ash.create!()
+
+      AshJudgments.Telemetry.materialised(%{
+        predicate: decision[:predicate],
+        verdict: :materialised,
+        grade: grade,
+        region: AshJudgments.Telemetry.current_region()
+      })
 
       {:ok, :materialised}
     end

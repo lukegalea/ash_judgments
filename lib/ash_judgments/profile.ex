@@ -467,6 +467,18 @@ defmodule AshJudgments.Profile do
         {:ok, stack_region}
 
       stack_region ->
+        # The disclosure event: the attempt's mismatch recorded, the
+        # endpoint never named (ADR 0042 — leaving the zone is a
+        # disclosure).
+        AshJudgments.Telemetry.residency_denied(%{
+          profile: profile.name,
+          residency: profile.residency,
+          profile_region: profile.region,
+          stack_region: stack_region,
+          region: stack_region,
+          refusal: :region_mismatch
+        })
+
         {:error,
          RegionMismatch.exception(
            profile_name: profile.name,
@@ -485,6 +497,17 @@ defmodule AshJudgments.Profile do
     if policy.allow?(tenant, profile.residency, family) do
       :ok
     else
+      # The disclosure event: the policy refusal's who/what — the
+      # tenant, the family, the residency class — never the endpoint.
+      AshJudgments.Telemetry.residency_denied(%{
+        profile: profile.name,
+        residency: profile.residency,
+        family: family,
+        tenant: tenant,
+        region: Application.get_env(:ash_judgments, :region),
+        refusal: :policy_denied
+      })
+
       {:error,
        ResidencyDenied.exception(
          profile_name: profile.name,

@@ -48,6 +48,7 @@ defmodule AshJudgments.Registry.Judge do
   alias AshJudgments.Profile
   alias AshJudgments.Registry.Canonical
   alias AshJudgments.Registry.Info
+  alias AshJudgments.Telemetry
 
   @impl true
   def run(input, opts, context) do
@@ -101,8 +102,63 @@ defmodule AshJudgments.Registry.Judge do
       matrix?: matrix?
     }
 
-    dispatch_mode(mode, call, wire_question_hash)
+    judge_meta = Telemetry.judge_meta(question, ctx, key_inputs, timing_meta())
+    Telemetry.judge_start(judge_meta)
+    started_mono = System.monotonic_time()
+
+    try do
+      {latency_us, result} = :timer.tc(fn -> dispatch_mode(mode, call, wire_question_hash) end)
+
+      duration_us =
+        System.convert_time_unit(System.monotonic_time() - started_mono, :native, :microsecond)
+
+      case result do
+        {:ok, _answer, _ids} = ok ->
+          Telemetry.judge_stop(judge_meta, latency_us, %{
+            duration: duration_us,
+            cache_hit?: cache_hit?(),
+            outcome: outcome(mode)
+          })
+
+          ok
+
+        {:error, _error, _partial} = failure ->
+          Telemetry.judge_stop(judge_meta, latency_us, %{
+            duration: duration_us,
+            cache_hit?: cache_hit?(),
+            outcome: :failed
+          })
+
+          failure
+      end
+    rescue
+      error ->
+        duration_us =
+          System.convert_time_unit(System.monotonic_time() - started_mono, :native, :microsecond)
+
+        Telemetry.judge_exception(judge_meta, error, duration_us)
+    end
   end
+
+  # The wire-reported model (captured in production by the default
+  # req_llm wrapper) rides the telemetry metadata — never the state.
+  defp timing_meta, do: %{model_reported: AshJudgments.Wire.ModelCapture.reported_model()}
+
+  # The cache-hit flag for the judge `:stop` outcome: live() marks it in
+  # the judge's own process (a per-call, single-process fact).
+  @cache_hit_key {__MODULE__, :cache_hit}
+
+  defp mark_cache_hit, do: Process.put(@cache_hit_key, true)
+
+  defp cache_hit? do
+    Process.get(@cache_hit_key, false)
+  after
+    Process.delete(@cache_hit_key)
+  end
+
+  defp outcome(:replay), do: :replay
+  defp outcome(:shadow), do: :shadow
+  defp outcome(_mode), do: :live
 
   # Each mode returns the same shape: `{:ok, answer, judgment_ids}` or
   # `{:error, error, partial}` — the error path never carries ids, because
@@ -145,17 +201,22 @@ defmodule AshJudgments.Registry.Judge do
           miss(Map.put(call, :model_spec, model_spec), wire_question_hash)
 
         record ->
+          mark_cache_hit()
           {:ok, answer} = Cache.rebuild_answer(record, question)
 
-          :telemetry.execute(
-            [:ash_judgments, :cache, :hit],
-            %{latency_us: 0},
-            %{
-              question_id: question.question_id,
-              observation_id: record.id,
-              mode: :live
-            }
-          )
+          Telemetry.cache_hit(%{
+            question_id: question.question_id,
+            question_hash: question.question_hash,
+            family: question.family,
+            observation_id: record.id,
+            mode: :live,
+            region: Telemetry.current_region(),
+            residency: Telemetry.residency_for(question.profile),
+            profile: Telemetry.profileref_for(question.profile),
+            model_digest: key_inputs[:model_digest],
+            model_version: record.model_version,
+            rung: :system_one
+          })
 
           # A cache hit writes no observation: the caller references the
           # existing one (§6.3).
@@ -206,6 +267,7 @@ defmodule AshJudgments.Registry.Judge do
                state: state,
                latency_us: latency_us,
                model_spec: model_spec,
+               model_reported: AshJudgments.Wire.ModelCapture.reported_model(),
                wire_question_hash: wire_question_hash,
                mode: :live,
                key_inputs: key_inputs
@@ -228,6 +290,15 @@ defmodule AshJudgments.Registry.Judge do
 
     case record do
       nil ->
+        Telemetry.replay_miss(%{
+          question_id: question.question_id,
+          question_hash: question.question_hash,
+          family: question.family,
+          mode: :replay,
+          region: Telemetry.current_region(),
+          residency: Telemetry.residency_for(question.profile)
+        })
+
         {:error,
          Cache.ReplayMiss.exception(
            cache_key: Ledger.cache_key(key_inputs),
@@ -338,14 +409,19 @@ defmodule AshJudgments.Registry.Judge do
 
     diff = Cache.diff(live_answer, shadow_answer)
 
-    :telemetry.execute(
-      [:ash_judgments, :shadow, :diff],
-      %{delta_p: diff.delta_p},
+    Telemetry.shadow_diff(
       %{
         question_id: question.question_id,
+        question_hash: question.question_hash,
+        family: question.family,
         value_changed: diff.value_changed,
-        shadow_of: live_record && live_record.id
-      }
+        shadow_of: live_record && live_record.id,
+        mode: :shadow,
+        region: Telemetry.current_region(),
+        residency: Telemetry.residency_for(question.profile),
+        rung: :system_one
+      },
+      diff.delta_p
     )
   end
 
@@ -420,11 +496,13 @@ defmodule AshJudgments.Registry.Judge do
     get_in(context || %{}, [:judgments, :req_llm])
   end
 
-  # An explicit nil would shadow upstream's default client (`Keyword.get(opts,
-  # :req_llm, ReqLLM)` treats a present-but-nil key as the value) — a host
-  # running without a judgments context must get the real client, not
-  # `nil.evaluate/4`.
-  defp maybe_put_req_llm(opts, nil), do: opts
+  # An explicit nil means the DEFAULT wire: the capturing wrapper around
+  # ReqLLM (it delegates and captures the runtime-reported model — the
+  # AST-89 deferral). A host's own override wins; no capture then, by
+  # design — the override owns its wire.
+  defp maybe_put_req_llm(opts, nil),
+    do: Keyword.put(opts, :req_llm, AshJudgments.Wire.ModelCapture)
+
   defp maybe_put_req_llm(opts, req_llm), do: Keyword.put(opts, :req_llm, req_llm)
 
   # The wire question: the exact object sent for this question, via the
@@ -480,6 +558,18 @@ defmodule AshJudgments.Registry.Judge do
       expected = pinned[:model]
 
       if reported != nil and expected != nil and reported != expected do
+        :telemetry.execute(
+          [:ash_judgments, :pin, :mismatch],
+          %{},
+          %{
+            question_id: question.question_id,
+            question_hash: question.question_hash,
+            expected: expected,
+            reported: reported,
+            region: Telemetry.current_region()
+          }
+        )
+
         raise Cache.PinMismatch,
           expected: expected,
           reported: reported,

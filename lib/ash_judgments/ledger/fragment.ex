@@ -366,6 +366,12 @@ defmodule AshJudgments.Ledger.Changes.TombstoneState do
 
   @impl true
   def change(changeset, _opts, _context) do
-    Ash.Changeset.change_attribute(changeset, :state_ciphertext, nil)
+    Ash.Changeset.after_action(changeset, fn _changeset, result ->
+      AshJudgments.Telemetry.tombstoned(result.id)
+      {:ok, result}
+    end)
+    |> then(fn changeset ->
+      Ash.Changeset.change_attribute(changeset, :state_ciphertext, nil)
+    end)
   end
 end

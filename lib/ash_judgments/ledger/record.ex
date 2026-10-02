@@ -116,8 +116,10 @@ defmodule AshJudgments.Ledger.Record do
         model_spec_requested(timing[:model_spec] || refs[:model_spec], question),
       wire_question_hash: timing[:wire_question_hash],
       # The recorded instrument identity equals the cache key's inputs —
-      # the recorded key must reproduce the lookup key exactly.
-      model_version: instrument[:model_version],
+      # the recorded key must reproduce the lookup key exactly. The
+      # host-declared version wins; the wire's runtime-reported model
+      # (the capture seam) fills the absence.
+      model_version: instrument[:model_version] || timing[:model_reported],
       model_digest: key_inputs[:model_digest],
       runtime_version: key_inputs[:runtime_version],
       profile: profile_name(question.profile),
@@ -262,7 +264,9 @@ defmodule AshJudgments.Ledger.Record do
       question_hash: question.question_hash,
       family: question.family,
       record: question.record,
-      error_digest: error_digest
+      error_digest: error_digest,
+      region: AshJudgments.Telemetry.current_region(),
+      residency: AshJudgments.Telemetry.residency_for(question.profile)
     })
 
     if question.record == :best_effort do
