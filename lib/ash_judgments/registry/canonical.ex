@@ -176,9 +176,4 @@ defmodule AshJudgments.Registry.Canonical do
   end
 
   defp escape([], _original), do: []
-
-  defp escape(_, original) do
-    # Non-string input to string/1: a programming error, fail loud.
-    raise ArgumentError, "cannot canonicalise #{inspect(original)}"
-  end
 end
