@@ -57,6 +57,16 @@ defmodule AshJudgments.Test.Appointment do
       state_shape(%{"reason" => "string"})
       expose_as_tool?(true)
     end
+
+    question :appointment_note_summary do
+      type(AshAi.Evaluate.Score)
+      constraints(levels: ["None", "Minor", "Major"])
+      instructions("How much summary work does this appointment still need?")
+      version(1)
+      family(:clinic_triage)
+      profile(:test_local)
+      record(:best_effort)
+    end
   end
 
   actions do

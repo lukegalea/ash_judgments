@@ -7,7 +7,12 @@
 [
   AshJudgments.Test.Domain,
   AshJudgments.Test.Note,
-  AshJudgments.Test.WorkOrder
+  AshJudgments.Test.WorkOrder,
+  AshJudgments.Test.Appointment,
+  AshJudgments.Test.InstrumentProbe,
+  AshJudgments.Test.Judgment,
+  AshJudgments.Test.HumanVerdict,
+  AshJudgments.Test.EventLog
 ]
 |> Enum.each(&Code.ensure_loaded!/1)
 

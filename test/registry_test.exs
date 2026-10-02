@@ -330,6 +330,20 @@ defmodule AshJudgments.RegistryTest do
   describe "the generated judge action (AC-5)" do
     setup :configure_stack
 
+    # Recording touches the ledger (a database by definition) — these tests
+    # are excluded under SKIP_DB with the rest of the :db tests.
+    @describetag :db
+
+    setup do
+      Ecto.Adapters.SQL.Sandbox.checkout(AshJudgments.TestRepo)
+
+      # The judge records into the test host's ledger (CORE-LEDGER): the
+      # questions are record: :must, so a missing ledger fails them closed.
+      Application.put_env(:ash_judgments, :ledger, AshJudgments.Test.Judgment)
+      on_exit(fn -> Application.delete_env(:ash_judgments, :ledger) end)
+      :ok
+    end
+
     test "the state on the wire is the projection's output, never the full input" do
       put_test_env(%{"JUDGE_BASE_URL" => "http://127.0.0.1:11435", "JUDGE_API_KEY" => "local"})
 
@@ -354,6 +368,33 @@ defmodule AshJudgments.RegistryTest do
       assert map_size(questions) == 1
       assert [{_key, question}] = Enum.to_list(questions)
       assert question.instructions =~ "follow-up commitment"
+
+      # The answer was recorded (CORE-LEDGER): one observation, digest-first.
+      recorded = AshJudgments.Test.Judgment |> Ash.read!() |> List.first()
+
+      assert recorded.question_id ==
+               "judgment:v0:AshJudgments.Test.Note#judgments/notes_follow_up"
+
+      assert recorded.answer_kind == :noul
+      assert recorded.value == nil
+      # The false-leg is the computed 1 - p: its shortest round-trip IS
+      # "0.09999999999999998" — the honest rendering of the derived double
+      # (§4.3 never rounds).
+      assert recorded.probabilities == %{
+               "true" => "0.9",
+               "false" => :erlang.float_to_binary(1 - 0.9, [:short])
+             }
+
+      assert recorded.model_spec_requested == "typesafe:test-model"
+      assert recorded.region == "ca"
+
+      assert recorded.state_digest ==
+               AshJudgments.Registry.Canonical.digest(
+                 AshJudgments.Registry.Canonical.encode(state)
+               )
+
+      refute recorded.cache_key == nil
+      refute recorded.record_hash == nil
     end
 
     test "the matrix action asks runtime questions and returns one answer per element" do

@@ -24,5 +24,9 @@ defmodule AshJudgments.Test.Domain do
     # domain because Ash refuses to run actions for resources the domain
     # does not accept.
     resource AshJudgments.Test.InstrumentProbe
+    resource AshJudgments.Test.Judgment
+    resource AshJudgments.Test.HumanVerdict
+    resource AshJudgments.Test.EventLog
+    resource AshJudgments.Test.FailingLedger
   end
 end

@@ -14,15 +14,47 @@ defmodule AshJudgments.Test.FakeReqLLM do
   hands the capture to the test.
   """
 
-  # The probes are Noul questions; this is upstream's raw answer shape,
-  # which `AshAi.Evaluate.Noul.from_answer/2` casts.
-  @canned_noul %{"probability" => 0.9}
-
+  # Canned replies in upstream's raw answer shapes — whatever the question
+  # type asks for (`from_answer/2` casts them).
   def evaluate(model_spec, state, questions, _opts) do
     send(self(), {:judge_call, model_spec, state, questions})
 
-    object = Map.new(questions, fn {key, _question} -> {key, @canned_noul} end)
+    object = Map.new(questions, fn {key, question} -> {key, canned_answer(question)} end)
 
     {:ok, %{object: object}}
+  end
+
+  defp canned_answer(question) do
+    case qtype(question) do
+      :score -> canned_score()
+      :choice -> canned_choice()
+      _kind -> %{"probability" => 0.9}
+    end
+  end
+
+  # Upstream keeps the question type as an atom in memory.
+  defp qtype(question) when is_map(question) do
+    type = Map.get(question, :type) || Map.get(question, "type")
+    normalize_type(type)
+  end
+
+  defp qtype(_other), do: :unknown
+
+  defp normalize_type(nil), do: :unknown
+  defp normalize_type(t) when is_atom(t), do: t
+  defp normalize_type(t) when is_binary(t), do: String.to_existing_atom(t)
+  defp normalize_type(_), do: :unknown
+
+  defp canned_score do
+    %{
+      "score" => 2,
+      "probabilities" => %{"0" => 0.05, "1" => 0.15, "2" => 0.8},
+      "confidence" => 0.9,
+      "legend" => %{"0" => "None", "1" => "Minor", "2" => "Major"}
+    }
+  end
+
+  defp canned_choice do
+    %{"choice" => "supports", "probabilities" => %{"supports" => 0.9}, "confidence" => 0.9}
   end
 end

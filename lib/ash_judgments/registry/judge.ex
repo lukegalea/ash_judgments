@@ -13,42 +13,48 @@ defmodule AshJudgments.Registry.Judge do
 
   - the **profile** is resolved through `AshJudgments.Profile.model_spec/3`
     in the action path — the tenant opt-out, the region guard and the pin
-    run here, next to the client (never in a policy check, law 3);
+    run here, next to the client, never inside a policy check (law 3);
   - the **state** is the projection's output (`project(input, context)
-    :: map`), never the raw action input — the PII-minimisation seam; with
-    no projection, upstream's default state (the arguments) applies;
+    :: map`), never the raw action input — the PII-minimisation seam.
+    Without a projection, upstream's default applies (the action
+    arguments);
   - a **`req_llm` override** is honoured from
     `context[:judgments][:req_llm]` — how the contract tests capture the
     wire without a model;
-  - the answer is handed to the configured **recorder**
-    (`config :ash_judgments, :recorder`, a module implementing
-    `record/4`). Until CORE-LEDGER lands the default is a no-op.
+  - the answer is **recorded** by `AshJudgments.Ledger.Record` against the
+    host ledger (config `:ash_judgments, :ledger`) — the instrument was
+    called before any record happens, and the record create accepts the
+    answer as input (law 2). The question's `record:` option decides the
+    failure posture: `:must` fails the action closed; `:best_effort`
+    logs, emits telemetry, and returns the answer.
   """
 
   @moduledoc since: "0.1.0"
 
   use Ash.Resource.Actions.Implementation
 
+  alias AshJudgments.Ledger
   alias AshJudgments.Profile
-  alias Spark.Dsl.Extension
 
   @impl true
   def run(input, opts, context) do
-    question =
-      Extension.get_persisted(input.resource, :questions)
-      |> Enum.find(&(&1.name == Keyword.fetch!(opts, :question)))
-
     # The action context as a plain map (`input.context`) — the
     # Implementation.Context struct has no Access behaviour.
     ctx = input.context
 
+    question =
+      AshJudgments.Registry.Info.questions(input.resource)
+      |> Enum.find(&(&1.name == Keyword.fetch!(opts, :question)))
+
     matrix? = Keyword.get(opts, :matrix?, false)
+
+    state = state_for(question, input)
 
     evaluate_opts =
       if matrix? do
-        [state: projection_fn(question), questions: matrix_questions(input)]
+        [state: state, questions: matrix_questions(input)]
       else
-        [state: projection_fn(question)]
+        [state: state] |> maybe_put_question_spec(question)
       end
 
     with {:ok, model_spec} <- resolve_model(question, input, ctx) do
@@ -57,8 +63,16 @@ defmodule AshJudgments.Registry.Judge do
         |> Keyword.put(:model, model_spec)
         |> Keyword.put(:req_llm, req_llm_override(ctx))
 
-      with {:ok, answer} <- AshAi.Actions.Evaluate.run(input, evaluate_opts, context) do
-        record(question, answer, input, context)
+      {latency_us, evaluate_result} =
+        :timer.tc(fn -> AshAi.Actions.Evaluate.run(input, evaluate_opts, context) end)
+
+      with {:ok, answer} <- evaluate_result,
+           :ok <-
+             record(question, answer, input, ctx, %{
+               state: state,
+               latency_us: latency_us,
+               model_spec: model_spec
+             }) do
         {:ok, answer}
       end
     end
@@ -78,29 +92,82 @@ defmodule AshJudgments.Registry.Judge do
     end
   end
 
-  # `nil` state lets upstream build its default (the action arguments); a
-  # projection replaces it wholesale — the model never sees the raw input.
-  defp projection_fn(%{state_projection: nil}), do: nil
+  # The state VALUE the judge sends — the projection's output when there
+  # is one, upstream's default (the arguments, string-keyed) otherwise.
+  # Resolved HERE so the ledger can digest exactly what went over the
+  # wire: recording a digest of something other than what was sent would
+  # be a rumour with a receipt.
+  defp state_for(%{state_projection: nil}, input) do
+    Map.new(input.arguments, fn {k, v} -> {Atom.to_string(k), v} end)
+  end
 
-  defp projection_fn(%{state_projection: projection}) when is_function(projection, 2),
-    do: projection
+  defp state_for(%{state_projection: projection}, input) when is_function(projection, 2),
+    do: projection.(input, input.context)
 
-  defp projection_fn(%{state_projection: {m, f, a}}), do: &apply(m, f, [&1, &2 | a])
+  defp state_for(%{state_projection: {m, f, a}}, input),
+    do: apply(m, f, [input, input.context | a])
 
-  defp projection_fn(%{state_projection: m}) when is_atom(m), do: &m.project(&1, &2)
+  defp state_for(%{state_projection: m}, input) when is_atom(m),
+    do: m.project(input, input.context)
 
   defp matrix_questions(input) do
     input.arguments.questions
   end
 
+  # The declared question rides the `questions` option: its wording as the
+  # instructions and its criteria (Choice option descriptions, Score
+  # levels, Noul true/false descriptions) as the criteria — the sanctioned
+  # per-question carrier upstream documents for exactly this. Levels and
+  # option descriptions are per-question data; they do not belong on the
+  # action's return constraints.
+  defp maybe_put_question_spec(evaluate_opts, question) do
+    criteria = question_criteria(question)
+
+    question_spec =
+      %{instructions: question_description(question)}
+      |> then(&if criteria, do: Map.put(&1, :criteria, criteria), else: &1)
+
+    Keyword.put(evaluate_opts, :questions, question_spec)
+  end
+
+  defp question_criteria(%{criteria: criteria}) when not is_nil(criteria), do: criteria
+
+  defp question_criteria(%{type: AshAi.Evaluate.Score, constraints: constraints}) do
+    constraints[:levels]
+  end
+
+  defp question_criteria(_question), do: nil
+
+  defp question_description(%{instructions: instructions}) when is_binary(instructions),
+    do: instructions
+
+  defp question_description(question), do: question.description
+
   defp req_llm_override(context) do
     get_in(context || %{}, [:judgments, :req_llm])
   end
 
-  defp record(question, answer, input, context) do
-    case Application.get_env(:ash_judgments, :recorder) do
-      nil -> :ok
-      recorder -> recorder.record(question, answer, input, context)
+  # The record posture (law 2 + ADR 0040): compliance families fail
+  # closed — a failed record means no answer leaves this action — while
+  # tooling families get their answer and a `[:ash_judgments, :record,
+  # :failed]` telemetry event. Either way the instrument is never re-run.
+  defp record(question, answer, input, ctx, timing) do
+    # One observation per answer: a matrix reply is one answer per runtime
+    # question (RFC §5.1), sharing the request's state and latency.
+    results =
+      answer
+      |> List.wrap()
+      |> Enum.map(&Ledger.Record.record(question, &1, ctx, timing, input.context))
+
+    errors = Enum.filter(results, &match?({:error, _}, &1))
+
+    # The recorder already logged and emitted [:ash_judgments, :record,
+    # :failed] per failure. Compliance families fail closed — no answer
+    # leaves this action; tooling families keep their answers.
+    case errors do
+      [] -> :ok
+      [first | _] when question.record == :must -> {:error, elem(first, 1)}
+      _ -> :ok
     end
   end
 end

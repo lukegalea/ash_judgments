@@ -124,11 +124,20 @@ What works today:
   from constraints, state projections with declared shapes, generated
   `judge_<name>` actions delegating to upstream `evaluate`, compile-time
   verifiers, and the version-bump lock (`docs/question-registry.md`).
+- **The judgment ledger** (`AshJudgments.Ledger`) — `Ledger.Fragment` and
+  `HumanVerdict.Fragment`: the observation and human-verdict records the HOST
+  defines on its own platform base (so the host's AshEvents audit, tenancy and
+  policies apply). Replay-safe by construction: the `:record` create accepts
+  the answer as input and its changes compute only pure derived fields —
+  replay rebuilds rows and never re-runs a model (law 2). The registry's
+  judge actions record through it: `record: :must` fails closed,
+  `:best_effort` returns the answer and emits
+  `[:ash_judgments, :record, :failed]`.
 - `AshJudgments.Availability` — the optional-dependency contract above.
 - Module stubs for the remaining ticket wave, each with its scope in the moduledoc:
-  `Ledger` (AST-88), `Cache` (AST-89), `Telemetry` (AST-90),
-  `Calibration` (AST-91), `Bridge.Dmn` (AST-92), `Bridge.Rules` (AST-93),
-  `Bridge.Bpmn` (AST-94), `Bridge.Evidence` (AST-95).
+  `Cache` (AST-89), `Telemetry` (AST-90), `Calibration` (AST-91),
+  `Bridge.Dmn` (AST-92), `Bridge.Rules` (AST-93), `Bridge.Bpmn` (AST-94),
+  `Bridge.Evidence` (AST-95).
 
 ## What it never does
 
@@ -186,12 +195,12 @@ check, format, the iron-laws judge, tests, docs validation).
 
 ## Status
 
-**Profiles and the question registry are real; the ledger and bridges are not yet.**
-The package contract, the availability contract, the profile layer (AST-86), and the
-question registry DSL (AST-87: hashed identity, options from constraints, generated
-judge actions, verifiers, the version-bump lock) ship; the remaining namespaces are
-stubs on purpose — each names its ticket (AST-88…AST-95) and ships no feature logic
-until that ticket lands.
+**Profiles, the question registry and the ledger are real; the cache, telemetry and
+bridges are not yet.** The package contract, the availability contract, the profile
+layer (AST-86), the question registry DSL (AST-87) and the judgment ledger (AST-88:
+replay-safe fragments, human verdicts, the must/best-effort postures) ship; the
+remaining namespaces are stubs on purpose — each names its ticket (AST-89…AST-95)
+and ships no feature logic until that ticket lands.
 
 **Reversibility (thesis 6).** Tier 3 — first-party, accepted, not on hex; confined to its
 own namespace and the host resources that include its fragments. The seam is upstream:

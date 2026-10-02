@@ -1,4 +1,8 @@
 {
+  "judgment:v0:AshJudgments.Test.Appointment#judgments/appointment_note_summary": {
+    "hash": "sha256:34a4b302ea7cb8fc6e726e65f0ef62e5b246d09bf82ad847459a73a3d04eb255",
+    "version": 1
+  },
   "judgment:v0:AshJudgments.Test.Appointment#judgments/triage_urgency": {
     "hash": "sha256:9275214e0ed8ce2d887717285717ff15b7e4ecc8b6df174c0057e85709585179",
     "version": 1

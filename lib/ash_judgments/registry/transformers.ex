@@ -263,6 +263,7 @@ defmodule AshJudgments.Registry.Transformers do
     Builder.build_action(:action, judge_name(question),
       description: question_description(question),
       returns: question.type,
+      constraints: return_constraints(question),
       arguments: [
         Builder.build_action_argument(:input, :map, allow_nil?: false, public?: true)
       ],
@@ -275,6 +276,7 @@ defmodule AshJudgments.Registry.Transformers do
       description:
         question_description(question) <> " (matrix: one judged answer per runtime question)",
       returns: {:array, question.type},
+      constraints: [items: return_constraints(question)],
       arguments: [
         Builder.build_action_argument(:input, :map, allow_nil?: false, public?: true),
         Builder.build_action_argument(:questions, {:array, :map},
@@ -291,6 +293,22 @@ defmodule AshJudgments.Registry.Transformers do
   # Compile-time atom construction from DSL-declared names (a bounded,
   # host-authored set — the law 10 exception for compile-time constants,
   # written in the literal form that says so).
+  # Action-return constraints for the answer types that carry them: a
+  # Score's ordered levels (they are part of the cast contract) and a
+  # Choice's `of` when it names an Ash.Type.Enum (a plain runtime option
+  # list rides the questions' criteria instead).
+  defp return_constraints(%{
+         type: AshAi.Evaluate.Score,
+         constraints: %{levels: [_ | _] = levels}
+       }),
+       do: [levels: levels]
+
+  defp return_constraints(%{type: AshAi.Evaluate.Choice, constraints: %{of: of}})
+       when is_atom(of),
+       do: [of: of]
+
+  defp return_constraints(_), do: []
+
   defp judge_name(question), do: :"judge_#{question.name}"
   defp matrix_name(question), do: :"judge_#{question.name}_matrix"
 
