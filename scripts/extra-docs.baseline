@@ -1,0 +1,3 @@
+# Warnings in files we must not edit, one "MESSAGE<TAB>PATH" per line, each
+# with its reason. A line that no longer matches also fails, so entries
+# cannot outlive the warning they excuse.

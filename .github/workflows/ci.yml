@@ -1,0 +1,192 @@
+# SPDX-FileCopyrightText: 2026 ash_judgments contributors <https://github.com/lukegalea/ash_judgments>
+#
+# SPDX-License-Identifier: MIT
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+# A failed run tells you nothing if a later push is already superseding it.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  MIX_ENV: test
+
+jobs:
+  test:
+    name: mix test
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+          TZ: UTC
+          PGTZ: UTC
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-beam
+        with:
+          deps-token: ${{ secrets.PRIVATE_DEPS_TOKEN }}
+      - run: mix test
+
+  compile-test:
+    name: MIX_ENV=test mix compile --warnings-as-errors
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-beam
+        with:
+          deps-token: ${{ secrets.PRIVATE_DEPS_TOKEN }}
+      # Dependencies compile in their own invocation: a cold cache would
+      # otherwise compile a dependency inside the gate below, and a
+      # dependency's own warning would turn into a red build of ours.
+      - run: mix deps.compile
+      - run: mix compile --force --warnings-as-errors
+
+  compile-dev:
+    name: MIX_ENV=dev mix compile --warnings-as-errors
+    runs-on: ubuntu-latest
+    env:
+      MIX_ENV: dev
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-beam
+        with:
+          mix-env: dev
+          deps-token: ${{ secrets.PRIVATE_DEPS_TOKEN }}
+      # dev is also where the analysis and docs tooling itself compiles
+      # (credo, ash_credo, dialyxir, ex_doc, ash_agent_tools), so its
+      # warnings surface here too.
+      - run: mix deps.compile
+      - run: mix compile --force --warnings-as-errors
+
+  format:
+    name: mix format --check-formatted
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-beam
+        with:
+          deps-token: ${{ secrets.PRIVATE_DEPS_TOKEN }}
+      - run: mix format --check-formatted
+
+  credo:
+    name: mix credo --strict
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-beam
+        with:
+          deps-token: ${{ secrets.PRIVATE_DEPS_TOKEN }}
+      # ash_credo's checks introspect compiled modules; an uncompiled project
+      # emits "could not load" diagnostics instead of real results.
+      - run: mix deps.compile
+      - run: mix compile
+      - run: mix credo --strict
+
+  iron-laws:
+    name: Iron laws judge
+    runs-on: ubuntu-latest
+    env:
+      MIX_ENV: dev
+    steps:
+      # Full history: the judge examines the lines added since the merge base
+      # with the PR's target (or with the commit a push started from).
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup-beam
+        with:
+          mix-env: dev
+          deps-token: ${{ secrets.PRIVATE_DEPS_TOKEN }}
+      - name: Judge the added lines
+        env:
+          IRON_LAWS_BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || github.event.before }}
+        run: scripts/iron-laws.sh diff
+
+  docs:
+    name: Docs (EXTRA_DOCS validation)
+    runs-on: ubuntu-latest
+    env:
+      MIX_ENV: dev
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-beam
+        with:
+          mix-env: dev
+          deps-token: ${{ secrets.PRIVATE_DEPS_TOKEN }}
+      - run: mix deps.compile
+      - name: Validate agent docs and moduledocs
+        run: scripts/extra-docs.sh
+
+  reuse:
+    name: REUSE compliance
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: fsfe/reuse-action@v5
+
+  dialyzer:
+    name: Dialyzer (advisory)
+    runs-on: ubuntu-latest
+    # DELIBERATELY non-blocking (ADR 0007). There is no official guidance for
+    # running Dialyzer against Ash or Spark, and Spark's macro expansion
+    # produces spurious warnings. A hard gate here would mean a permanently
+    # red build or an ignore file so broad it hides real findings; the
+    # warnings-as-errors compile is this repository's static-analysis gate.
+    continue-on-error: true
+    env:
+      MIX_ENV: dev
+    steps:
+      - uses: actions/checkout@v4
+      - id: beam
+        uses: ./.github/actions/setup-beam
+        with:
+          mix-env: dev
+          deps-token: ${{ secrets.PRIVATE_DEPS_TOKEN }}
+      - uses: actions/cache@v4
+        with:
+          path: priv/plts
+          key: ${{ runner.os }}-dialyzer-${{ steps.beam.outputs.elixir-version }}-${{ hashFiles('mix.lock') }}
+          restore-keys: ${{ runner.os }}-dialyzer-${{ steps.beam.outputs.elixir-version }}-
+      # No plt_file is configured, so dialyxir keeps the rest of the PLT
+      # under _build — already restored by the setup action's cache.
+      - run: mkdir -p priv/plts
+      - run: mix dialyzer --format short
+
+  cold-clone:
+    name: Cold clone fetches every dependency
+    runs-on: ubuntu-latest
+    # Advisory until DEC-PUB's flip completes (ash_rules, ash_compliance,
+    # ash_bpmn, ash_decisions are the first-party git deps; ash_agent_tools
+    # is already public). When every dep fetches anonymously, flip
+    # continue-on-error off and this becomes the gate ash_enterprise runs:
+    # no secrets, no cache, no checkout token — a `path:` dependency or a
+    # re-privatised dep fails here by name.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-beam
+      - name: Fetch dependencies with no credentials
+        env:
+          GIT_TERMINAL_PROMPT: "0"
+        run: mix deps.get
