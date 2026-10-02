@@ -43,14 +43,22 @@ defmodule AshJudgments.Facts do
   The fragment exposes `subject` (the composite subject term, as JSON —
   `{"type": ..., "id": ...}`), `predicate` (the string spelling — for
   judged predicates the question id, one namespace with crisp
-  fact-schema names) and `value` (a JSON object) as plain attributes, so
+  fact-schema names) and `value` as plain attributes, so
   `AshRules.Evaluator.Set.membership/4` runs over the host table
-  directly. The `value` column is JSON: the data layer's equality on it
-  is a **superset** of the evaluator's strict equality (numeric coercion
-  narrows; the evaluator re-verifies with `===`), which is the encoding
-  discipline S1-54 flagged. Scalar judged values travel inside the
-  object — a boolean-shaped predicate materialises
-  `%{"holds" => true|false}` plus the raw judged `value`.
+  directly.
+
+  ## Value encoding ([L]1)
+
+  Values are stored as SCALAR JSON first — `true`, `"urgent"`, `80` — so
+  the set evaluator's data-layer filter and its strict
+  `values_equal?/2` re-verification hit scalar probes directly. Wrapper
+  maps only for genuinely composite values (extraction structs). The
+  `AshJudgments.Facts.ScalarJson` type accepts any JSON-encodable term;
+  the data layer's equality on the jsonb column remains a **superset**
+  of strict equality (numeric coercion narrows; the evaluator
+  re-verifies with `===`), which is the encoding discipline S1-54
+  flagged. The `holds` column remains the tri-state surface's membership
+  column (`Query.status/4`), not an ash_rules probe target.
   """
 
   @moduledoc since: "0.1.0"

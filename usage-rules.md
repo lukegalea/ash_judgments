@@ -103,6 +103,19 @@ error, never a crash:
 - Gate new integration code behind `Code.ensure_loaded?/1` (the Ecto-Jason pattern) so
   the package keeps compiling with or without any of them.
 
+## The ash_rules bridge
+
+- The bridge reads the MATERIALISED FACTS TABLE, not the ledger: facts
+  carry admission provenance, grade floors, freshness and scope; the
+  ledger is the observation record reached via `admission_id`.
+- Every fact-schema entry the bridge declares carries `missing:
+  :unknown` — escalate means omission, an absent fact is unknown, never
+  false.
+- Fact values are SCALAR JSON first (`true`, `"urgent"`, `80`); wrapper
+  maps only for genuinely composite values. The snapshot hash
+  (`Bridge.Rules.snapshot_hash/3`) pins consumed inputs including
+  explicit omission markers — probabilities never enter it.
+
 ## For hosts defining the ledger resource
 
 - The package supplies a `Spark.Dsl.Fragment`, not a persisted resource. Define the

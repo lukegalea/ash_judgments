@@ -98,11 +98,11 @@ defmodule AshJudgments.Facts.Fragment do
       description:
         "One namespace: the judged question's question_id (§3.1), or the crisp fact-schema name."
 
-    attribute :value, :map,
+    attribute :value, AshJudgments.Facts.ScalarJson,
       allow_nil?: false,
       public?: true,
       description:
-        "The fact's value as a JSON object in the predicate's declared type — e.g. %{\"holds\" => true} for a boolean-shaped predicate, %{\"option\" => \"urgent\"} for a judged Choice. JSON keeps the data layer's equality a superset of the set evaluator's strict equality."
+        "The fact's value as JSON in the predicate's declared type (RFC §7.4): SCALARS stored as scalar JSON (true, \"urgent\", 80) so the set evaluator's data-layer filter and strict values_equal? re-verification hit directly ([L]1); wrapper maps only for genuinely composite values (extraction structs). The type accepts any JSON-encodable term; the data layer's equality remains a superset of strict equality."
 
     attribute :holds, :boolean,
       allow_nil?: false,

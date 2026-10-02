@@ -89,6 +89,9 @@ defmodule AshJudgments.MixProject do
       # First-party packages not yet on hex ship as GitHub deps, per house
       # convention (see ash_agent_tools, which declares the same four this
       # way).
+      # Unpinned github dep (matches ash_compliance's requirement — the
+      # lock file pins the resolved SHA, which carries the S1-54 set
+      # evaluator that AST-93's equivalence cross-check builds on).
       {:ash_rules, github: "lukegalea/ash_rules", optional: true},
       {:ash_compliance, github: "lukegalea/ash_compliance", optional: true},
       {:ash_bpmn, github: "lukegalea/ash_bpmn", optional: true},

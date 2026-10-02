@@ -105,7 +105,7 @@ defmodule AshJudgments.Repo.Migrations.Ledger do
       add :subject_id, :text, null: false
 
       add :predicate, :text, null: false
-      add :value, :map, null: false
+      add :value, :text, null: false
       add :holds, :boolean, null: false
 
       add :scope, :map

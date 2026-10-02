@@ -43,7 +43,8 @@ defmodule AshJudgments.FactsTest do
         result: :admitted,
         subject: @subject,
         predicate: @predicate,
-        value: %{"option" => "urgent"},
+        # [L]1: scalar JSON — the judged option string, not a wrapper map.
+        value: "urgent",
         holds: true,
         grade: :grant,
         admission_id: "99999999-9999-4999-8999-999999999999",
@@ -79,7 +80,7 @@ defmodule AshJudgments.FactsTest do
       fact = current()
 
       assert fact.holds == true
-      assert fact.value == %{"option" => "urgent"}
+      assert fact.value == "urgent"
       assert fact.admission_grade == :grant
       assert fact.subject_type == "AshJudgments.Test.Note"
       assert fact.subject_id == "note-1"
@@ -111,19 +112,19 @@ defmodule AshJudgments.FactsTest do
       assert materialise!(grade: :person) == :materialised
       person_fact = current()
 
-      assert materialise!(grade: :grant, value: %{"option" => "routine"}, holds: false) ==
+      assert materialise!(grade: :grant, value: "routine", holds: false) ==
                :kept_person_fact
 
       fact = current()
       assert fact.id == person_fact.id
       assert fact.admission_grade == :person
-      assert fact.value == %{"option" => "urgent"}
+      assert fact.value == "urgent"
     end
 
     test "a person admission supersedes freely (the reviewer is the author of record)" do
       assert materialise!(grade: :grant) == :materialised
 
-      assert materialise!(grade: :person, value: %{"option" => "routine"}, holds: false) ==
+      assert materialise!(grade: :person, value: "routine", holds: false) ==
                :materialised
 
       fact = current()
@@ -151,10 +152,10 @@ defmodule AshJudgments.FactsTest do
 
     test "a changed value under the same admission id is materialised (content decides)" do
       assert materialise!() == :materialised
-      assert materialise!(value: %{"option" => "routine"}, holds: false) == :materialised
+      assert materialise!(value: "routine", holds: false) == :materialised
 
       fact = current()
-      assert fact.value == %{"option" => "routine"}
+      assert fact.value == "routine"
       assert fact.holds == false
     end
 
@@ -163,7 +164,7 @@ defmodule AshJudgments.FactsTest do
         AshJudgments.Facts.Materialiser.materialise_verdict(%{
           subject: @subject,
           predicate: @predicate,
-          value: %{"option" => "routine"},
+          value: "routine",
           holds: false,
           admission_id: "88888888-8888-4888-8888-888888888888",
           judgment_id: "77777777-7777-4777-8777-777777777777"
@@ -182,7 +183,7 @@ defmodule AshJudgments.FactsTest do
   describe "the derived reads (tri-state, status, freshness, scope, validity)" do
     test "in / out / unknown over three subjects" do
       materialise!(subject: @subject, holds: true)
-      materialise!(subject: @subject2, value: %{"option" => "routine"}, holds: false)
+      materialise!(subject: @subject2, value: "routine", holds: false)
 
       # note-3 has no fact at all.
       partition =
@@ -228,7 +229,7 @@ defmodule AshJudgments.FactsTest do
                  current_digests: %{@subject => decision_state_digest()}
                )
 
-      assert fact.value == %{"option" => "urgent"}
+      assert fact.value == "urgent"
     end
 
     test "scope: a fact in another scope does not serve a scope-less read" do
@@ -359,7 +360,7 @@ defmodule AshJudgments.FactsTest do
             end
 
           holds = rem(i, 2) == 0
-          value = if holds, do: %{"option" => "urgent"}, else: %{"option" => "routine"}
+          value = if holds, do: "urgent", else: "routine"
 
           %{
             # A deterministic id per decision — the caller's idempotency

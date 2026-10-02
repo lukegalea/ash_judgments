@@ -117,8 +117,24 @@ defmodule AshJudgments.Facts.Materialiser do
     else
       {:ok, _} = supersede_current(current, decision)
 
-      resource
-      |> Ash.Changeset.for_create(:materialise, materialise_inputs(decision, grade))
+      changeset =
+        Ash.Changeset.for_create(
+          resource,
+          :materialise,
+          materialise_inputs(decision, grade)
+        )
+
+      if changeset.valid? == false do
+        IO.puts(
+          :stderr,
+          "DBG invalid materialise: " <>
+            inspect(changeset.errors |> Enum.map(&Exception.message/1))
+        )
+
+        IO.puts(:stderr, "DBG inputs: " <> inspect(changeset.params, limit: 12))
+      end
+
+      changeset
       |> Ash.create!()
 
       {:ok, :materialised}
@@ -159,23 +175,13 @@ defmodule AshJudgments.Facts.Materialiser do
   end
 
   defp current_fact(resource, decision) do
-    IO.puts(
-      :stderr,
-      "DBG current_fact subject=#{inspect(decision[:subject])} pred=#{inspect(decision[:predicate])}"
-    )
-
-    found =
-      resource
-      |> Ash.Query.for_read(:for_subject, %{
-        subject: decision[:subject],
-        predicate: decision[:predicate]
-      })
-      |> Ash.read!()
-
-    IO.puts(:stderr, "DBG current_fact found=#{length(found)}")
-    IO.puts(:stderr, "DBG all rows=#{length(Ash.read!(resource))}")
-
-    case found do
+    resource
+    |> Ash.Query.for_read(:for_subject, %{
+      subject: decision[:subject],
+      predicate: decision[:predicate]
+    })
+    |> Ash.read!()
+    |> case do
       [fact] -> fact
       [] -> nil
       facts -> List.last(facts)

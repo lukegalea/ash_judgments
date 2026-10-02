@@ -143,11 +143,14 @@ What works today:
   derived tri-state/status reads (membership is derived, never stored; stale
   and expired read `unknown` and queue for reassessment); and the bounded
   `assess` selection with a priority seam for S1-56's retrieval.
+- **The ash_rules bridge** (`AshJudgments.Bridge.Rules`) — fact-schema
+  entries with escalate-means-omission (`missing: :unknown`), the
+  FactBuilder over the materialised facts table, and the fact-snapshot
+  hash that pins a finding's inputs (`docs/bridge-ash-rules.md`).
 - `AshJudgments.Availability` — the optional-dependency contract above.
 - Module stubs for the remaining ticket wave, each with its scope in the moduledoc:
   `Cache` (AST-89), `Telemetry` (AST-90), `Calibration` (AST-91),
-  `Bridge.Dmn` (AST-92), `Bridge.Rules` (AST-93), `Bridge.Bpmn` (AST-94),
-  `Bridge.Evidence` (AST-95).
+  `Bridge.Dmn` (AST-92), `Bridge.Bpmn` (AST-94), `Bridge.Evidence` (AST-95).
 
 ## What it never does
 
