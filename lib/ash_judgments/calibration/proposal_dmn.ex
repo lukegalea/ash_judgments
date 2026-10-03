@@ -114,22 +114,32 @@ defmodule AshJudgments.Calibration.ProposalDmn do
   defp threshold_finding(proposal) do
     thresholds = fetch(proposal, :thresholds)
 
-    unless is_map(thresholds) do
-      "the proposal needs a `thresholds` map carrying the earned threshold"
+    if is_map(thresholds) do
+      threshold_value_finding(fetch(thresholds, :threshold))
     else
-      case decimal(fetch(thresholds, :threshold)) do
-        {:ok, value} ->
-          if Decimal.compare(value, Decimal.new(0)) == :lt or
-               Decimal.compare(value, Decimal.new(1)) == :gt do
-            "the threshold must be within [0, 1] (got: #{Decimal.to_string(value)})"
-          else
-            nil
-          end
+      "the proposal needs a `thresholds` map carrying the earned threshold"
+    end
+  end
 
-        :error ->
-          "the `thresholds[\"threshold\"]` must parse as a decimal in [0, 1] " <>
-            "(got: #{inspect(fetch(thresholds, :threshold))})"
-      end
+  defp threshold_value_finding(threshold) do
+    case decimal(threshold) do
+      {:ok, value} ->
+        range_finding(value)
+
+      :error ->
+        "the `thresholds[\"threshold\"]` must parse as a decimal in [0, 1] " <>
+          "(got: #{inspect(threshold)})"
+    end
+  end
+
+  defp range_finding(value) do
+    low = Decimal.compare(value, Decimal.new(0)) == :lt
+    high = Decimal.compare(value, Decimal.new(1)) == :gt
+
+    if low or high do
+      "the threshold must be within [0, 1] (got: #{Decimal.to_string(value)})"
+    else
+      nil
     end
   end
 
