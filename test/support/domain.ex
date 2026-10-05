@@ -26,6 +26,7 @@ defmodule AshJudgments.Test.Domain do
     resource(AshJudgments.Test.InstrumentProbe)
     resource(AshJudgments.Test.Judgment)
     resource(AshJudgments.Test.HumanVerdict)
+    resource(AshJudgments.Test.QuestionProposal)
     resource(AshJudgments.Test.EventLog)
     resource(AshJudgments.Test.Fact)
     resource(AshJudgments.Test.FailingLedger)

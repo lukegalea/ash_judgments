@@ -102,6 +102,17 @@ defmodule AshJudgments.Ledger do
   end
 
   @doc """
+  The configured host ledger resource, or `nil` when none is configured
+  (`config :ash_judgments, :ledger`). The read paths that join the ledger
+  (the explore tier's ordering read, the recurrence detector) call this
+  instead of re-reading the application env.
+  """
+  @spec resource() :: module() | nil
+  def resource do
+    Application.get_env(:ash_judgments, :ledger)
+  end
+
+  @doc """
   The §4.4 cache key, full fidelity — computed ONLY from inputs (a pure
   derived field, RFC §6.1): the state's input hash, the model digest, the
   runtime version, the WIRE question hash (§3.3 — what was actually sent)

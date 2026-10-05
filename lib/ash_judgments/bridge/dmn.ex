@@ -102,6 +102,14 @@ defmodule AshJudgments.Bridge.Dmn do
   end
 
   defp flatten_answer(%{question: question} = answer_map) do
+    # The explore tier's refusal (§4.2): an exploratory observation is
+    # never banded — no family, no band table. The namespace is refused
+    # at the earliest package-owned gate, before any FEEL input exists.
+    if AshJudgments.Exploration.exploratory?(question_id_of(question)) do
+      raise ArgumentError,
+            "banding inputs refused an exploratory observation (#{question_id_of(question)}) — exploratory rows are never banded (design §4.2); promotion is the only path"
+    end
+
     key = input_key(question)
     answer = Map.get(answer_map, :answer)
 
@@ -295,6 +303,8 @@ defmodule AshJudgments.Bridge.Dmn do
   defp parse_float(_), do: 0.0
 
   defp input_key(question), do: to_string(question.name)
+
+  defp question_id_of(question) when is_map(question), do: Map.get(question, :question_id)
 
   ## The band contract + evaluation seam
 

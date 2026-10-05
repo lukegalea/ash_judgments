@@ -83,7 +83,16 @@ defmodule AshJudgments.Ledger.Fragment do
     attribute :question_id, :string, allow_nil?: false, public?: true
     attribute :question_hash, :string, allow_nil?: false, public?: true
     attribute :question_version, :integer, allow_nil?: false, public?: true
-    attribute :family, :string, allow_nil?: false, public?: true
+
+    # The explore-tier widening (design errata [L]2, §7.4 normative 5):
+    # family is NULL exactly on an exploratory observation — null ties to
+    # the reserved namespace by validation, so no declared question loses
+    # its calibration grouping and no exploratory row can ever band.
+    attribute :family, :string,
+      allow_nil?: true,
+      public?: true,
+      description:
+        "The calibration grouping (law 5). NULL only on an exploratory observation (the explore-tier widening): no family, no band table, no admission."
 
     ## Subject (§5.4) — denormalised for queries.
 
@@ -283,7 +292,66 @@ defmodule AshJudgments.Ledger.Fragment do
       end
     end
 
+    read :latest_answered do
+      description ~S"""
+      The explore tier's §1 ordering read: the latest live ANSWERED
+      observation per (question, subject), riding the [L]5 partial index.
+      At the v0 record's field set every recorded row is an answered
+      observation (the judge records only successful casts), so
+      live+answered reduces to mode = :live; a host whose record carries
+      the §5.5 outcome column adds that conjunct on its own action. The
+      leading tenant column of the index is the host's multitenancy
+      attribute; this fragment stays tenant-agnostic.
+      """
+
+      argument :question_id, :string, allow_nil?: false, public?: true
+
+      filter expr(question_id == ^arg(:question_id) and mode == :live)
+
+      # One row per subject: DISTINCT ON with the newest recorded_at — the
+      # read the ordering decoration joins.
+      prepare build(distinct: [:question_id, :subject_type, :subject_id])
+
+      prepare build(
+                sort: [
+                  question_id: :asc,
+                  subject_type: :asc,
+                  subject_id: :asc,
+                  recorded_at: :desc
+                ]
+              )
+
+      pagination keyset?: true, required?: false
+    end
+
+    read :exploratory_observations do
+      description ~S"""
+      The explore tier's recurrence read: every observation from the
+      reserved exploratory namespace (`#judgments/exploratory`), for one
+      mode (default live — calibration/shadow rows are not person-facing
+      invocations). Tenant-scoped by Ash multitenancy; envelope-only
+      aggregates are built from it, never actor or subject lists.
+      """
+
+      argument :mode, :atom,
+        allow_nil?: false,
+        default: :live,
+        constraints: [one_of: [:live, :shadow, :calibration, :eval]],
+        public?: true
+
+      filter expr(
+               contains(question_id, "#judgments/exploratory") and
+                 mode == ^arg(:mode)
+             )
+    end
+
     defaults [:read]
+  end
+
+  validations do
+    validate {AshJudgments.Ledger.Validations.FamilyMatchesNamespace, []},
+      description:
+        "family is NULL exactly on an exploratory observation (the explore-tier widening, §7.4 n.5)."
   end
 
   identities do

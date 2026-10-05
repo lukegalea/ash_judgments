@@ -154,6 +154,7 @@ defmodule AshJudgments.MixProject do
           "usage-rules.md",
           "docs/instrument-profiles.md",
           "docs/question-registry.md",
+          "docs/exploration.md",
           "docs/bridge-bpmn.md",
           "docs/bridge-evidence.md",
           "docs/telemetry.md",

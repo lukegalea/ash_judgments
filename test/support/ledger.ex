@@ -43,7 +43,7 @@ defmodule AshJudgments.Test.ClearLedger do
   @impl true
   def clear_records!(_opts) do
     for table <-
-          ~w(test_judgments test_human_verdicts test_facts test_bandings test_band_table_certifications) do
+          ~w(test_judgments test_human_verdicts test_facts test_bandings test_band_table_certifications test_question_proposals) do
       AshJudgments.TestRepo.query!("DELETE FROM " <> table, [])
     end
 
@@ -98,6 +98,31 @@ defmodule AshJudgments.Test.HumanVerdict do
   end
 end
 
+defmodule AshJudgments.Test.QuestionProposal do
+  @moduledoc """
+  The test host's question-proposal store: the exploration proposal
+  fragment on the host's own base, audited like every judgment write.
+  The home record the person-promote mint creates — inert data by
+  construction: nothing declares, nothing activates.
+  """
+
+  use Ash.Resource,
+    domain: AshJudgments.Test.Domain,
+    data_layer: AshPostgres.DataLayer,
+    extensions: [AshEvents.Events],
+    fragments: [AshJudgments.Exploration.ProposalFragment]
+
+  events do
+    event_log(AshJudgments.Test.EventLog)
+    create_timestamp :proposed_at
+  end
+
+  postgres do
+    table "test_question_proposals"
+    repo(AshJudgments.TestRepo)
+  end
+end
+
 defmodule AshJudgments.Test.FailingLedger do
   @moduledoc """
   A ledger whose `:record` always fails — the forced-insert-failure for
@@ -141,6 +166,11 @@ defmodule AshJudgments.Test.FailingLedger do
     attribute :record_hash, :string, public?: true
     attribute :wire_question_hash, :string, public?: true
     attribute :shadow_of, :uuid, public?: true
+
+    # Public here (the real fragment keeps it private with an explicit
+    # accept): this fake's `accept [:*]` is the duck-type contract — the
+    # recorder's FULL input surface must cast.
+    attribute :envelope, :map, public?: true
   end
 
   actions do

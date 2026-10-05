@@ -52,32 +52,50 @@ defmodule AshJudgments.Facts.Materialiser do
   """
   @spec materialise(map(), keyword()) :: {:ok, atom()} | {:error, term()}
   def materialise(decision, opts \\ []) when is_map(decision) do
-    resource = facts_resource(opts)
-    grade = decision[:grade] || :grant
-    current = current_fact(resource, decision)
+    with :ok <- check_predicate(decision) do
+      resource = facts_resource(opts)
+      grade = decision[:grade] || :grant
+      current = current_fact(resource, decision)
 
-    cond do
-      current && current.admission_grade == :person && grade == :grant ->
-        # §7.2 normative 2: an automatic admission never overwrites or
-        # lowers a fact a person entered. It may only fill an absence.
-        {:ok, :kept_person_fact}
+      cond do
+        current && current.admission_grade == :person && grade == :grant ->
+          # §7.2 normative 2: an automatic admission never overwrites or
+          # lowers a fact a person entered. It may only fill an absence.
+          {:ok, :kept_person_fact}
 
-      decision[:result] == :omitted ->
-        supersede_current(current, decision)
+        decision[:result] == :omitted ->
+          supersede_current(current, decision)
 
-      decision[:result] == :review ->
-        # The open review task reads as unknown by absence; nothing is
-        # written. Its conclusion arrives as a verdict or an admission.
-        {:ok, :no_fact}
+        decision[:result] == :review ->
+          # The open review task reads as unknown by absence; nothing is
+          # written. Its conclusion arrives as a verdict or an admission.
+          {:ok, :no_fact}
 
-      decision[:result] == :admitted ->
-        admitted(resource, decision, current, grade)
+        decision[:result] == :admitted ->
+          admitted(resource, decision, current, grade)
 
-      true ->
-        {:error,
-         ArgumentError.exception(
-           "unknown admission result #{inspect(decision[:result])} — expected :admitted, :review or :omitted"
-         )}
+        true ->
+          {:error,
+           ArgumentError.exception(
+             "unknown admission result #{inspect(decision[:result])} — expected :admitted, :review or :omitted"
+           )}
+      end
+    end
+  end
+
+  # The explore tier's refusal (§4.2): an exploratory question is never a
+  # fact predicate — never admitted, never fact-fed, at any grade. A
+  # person's verdict labels for calibration (§7.3); a fact requires the
+  # full promotion lifecycle first.
+  defp check_predicate(decision) do
+    if AshJudgments.Exploration.exploratory?(decision[:predicate]) do
+      {:error,
+       AshJudgments.Exploration.ExploratoryRefused.exception(
+         question_id: decision[:predicate],
+         surface: "the fact materialiser"
+       )}
+    else
+      :ok
     end
   end
 

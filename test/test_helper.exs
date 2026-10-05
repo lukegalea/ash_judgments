@@ -12,6 +12,7 @@
   AshJudgments.Test.InstrumentProbe,
   AshJudgments.Test.Judgment,
   AshJudgments.Test.HumanVerdict,
+  AshJudgments.Test.QuestionProposal,
   AshJudgments.Test.EventLog,
   AshJudgments.Test.Fact,
   AshJudgments.Test.Banding,

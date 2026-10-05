@@ -102,7 +102,10 @@ defmodule AshJudgments.Ledger.Record do
       question_id: question.question_id,
       question_hash: question.question_hash,
       question_version: question.version,
-      family: Atom.to_string(question.family),
+      # The explore tier's only nil: an exploratory observation carries no
+      # family (the sanctioned widening); every declared question keeps
+      # its calibration grouping.
+      family: family(question.family),
       subject_type: subject(refs, :type),
       subject_id: subject(refs, :id),
       state_digest: Canonical.digest(Canonical.encode(state)),
@@ -127,6 +130,10 @@ defmodule AshJudgments.Ledger.Record do
       latency_us: timing[:latency_us],
       shadow_of: timing[:shadow_of],
       mode: timing[:mode] || mode(judge_context),
+      # The provenance-envelope embed (AST-9 placeholder): a host (or the
+      # explore tier's run, carrying the actor's envelope-class digest)
+      # parks provenance here. Never an id-bearing field by contract.
+      envelope: sanitize_map(refs[:envelope]),
       correlation_id: judge_context[:correlation_id],
       valid_until: refs[:valid_until]
     }
@@ -138,6 +145,10 @@ defmodule AshJudgments.Ledger.Record do
       _ -> nil
     end
   end
+
+  defp family(nil), do: nil
+  defp family(family) when is_atom(family), do: Atom.to_string(family)
+  defp family(family) when is_binary(family), do: family
 
   # The KIND comes from the question's declared type — the authority —
   # never from the answer's runtime shape (upstream's cast may hand back
