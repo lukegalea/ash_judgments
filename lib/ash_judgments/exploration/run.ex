@@ -85,16 +85,12 @@ defmodule AshJudgments.Exploration.Run do
     _instructions = Map.fetch!(question, :instructions)
     profile = Keyword.fetch!(opts, :profile)
 
-    with :ok <- check_bounds(subjects, opts),
-         {:ok, model_spec} <- resolve_model(profile, opts) do
-      execute(
-        subject_module,
-        question,
-        Enum.take(subjects, limit(opts)),
-        model_spec,
-        profile,
-        opts
-      )
+    with :ok <- check_bounds(subjects, opts) do
+      # The resolution result threads through so the run's call tree stays
+      # reachable whatever the resolution returned.
+      subjects
+      |> Enum.take(limit(opts))
+      |> execute(subject_module, question, resolve_model(profile, opts), profile, opts)
     end
   end
 
@@ -123,24 +119,36 @@ defmodule AshJudgments.Exploration.Run do
   # The exploratory family is nil — nothing to pin against admission; the
   # profile's region guard and residency policy still run (§4.1). A
   # refused resolution fails the run with the profile's own error.
-  #
-  # The call goes through apply/3 deliberately: dialyzer narrows
-  # Profile.model_spec/3's success typing to its error union for a
-  # family-nil question (the same false-positive shape profile.ex's
-  # resolver carries; ADR 0007 keeps the job advisory), and that wrong
-  # inference once cascaded through this whole module. The call is
-  # dynamic by construction anyway — the profile is host config.
   defp resolve_model(profile, opts) do
-    apply(AshJudgments.Profile, :model_spec, [
-      %{profile: profile, family: nil},
-      %{},
-      %{
-        tenant: opts[:tenant]
-      }
-    ])
+    AshJudgments.Profile.model_spec(%{profile: profile, family: nil}, %{}, %{
+      tenant: opts[:tenant]
+    })
   end
 
-  defp execute(subject_module, question, subjects, model_spec, profile, opts) do
+  # Dialyzer narrows Profile.model_spec/3's success typing to its error
+  # union for a family-nil question — the same false-positive shape
+  # profile.ex's resolver carries (ADR 0007 keeps the job advisory) — so
+  # execute's :ok clause reads as unreachable and every function below it
+  # as uncalled. Silenced at the one inference point and the frozen list
+  # of its cascade; the compile-time type checker is the repository's
+  # real gate.
+  @dialyzer [
+    {:nowarn_function,
+     execute: 6,
+     subject: 2,
+     miss: 6,
+     evaluate: 2,
+     synthetic_action: 1,
+     exploratory_question: 1,
+     default_subject_type: 1,
+     maybe_put: 3,
+     maybe_put_actor_digest: 2,
+     actor_digest: 1,
+     actor_to_string: 1,
+     wire_question: 1}
+  ]
+
+  defp execute(subjects, subject_module, question, {:ok, model_spec}, profile, opts) do
     identity_hash = Exploration.identity_hash(question)
     wire_question = wire_question(question)
     wire_question_hash = Canonical.digest(Canonical.encode(wire_question))
@@ -166,6 +174,10 @@ defmodule AshJudgments.Exploration.Run do
     results = Enum.map(subjects, &subject(&1, env))
 
     {:ok, results}
+  end
+
+  defp execute(_subjects, _subject_module, _question, {:error, error}, _profile, _opts) do
+    {:error, error}
   end
 
   defp subject(raw_subject, env) do
