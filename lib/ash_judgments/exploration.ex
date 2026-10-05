@@ -185,9 +185,10 @@ defmodule AshJudgments.Exploration do
   defp options_from_type(_), do: nil
 
   defp enum_options(of) when is_atom(of) do
-    cond do
-      function_exported?(of, :values, 0) -> of.values()
-      true -> raise ArgumentError, "#{inspect(of)} is not an Ash.Type.Enum"
+    if function_exported?(of, :values, 0) do
+      of.values()
+    else
+      raise ArgumentError, "#{inspect(of)} is not an Ash.Type.Enum"
     end
   end
 

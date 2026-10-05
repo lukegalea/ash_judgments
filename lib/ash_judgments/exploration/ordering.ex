@@ -263,43 +263,46 @@ defmodule AshJudgments.Exploration.Ordering do
     probabilities = Map.get(record, :probabilities) || %{}
 
     case Map.get(record, :answer_kind) do
-      :noul ->
-        p_true = parse_float(probabilities["true"])
-        p_false = parse_float(probabilities["false"])
-
-        if p_true != nil and p_false != nil and p_true >= p_false, do: true, else: false
-
-      :choice ->
-        normalize_option(Map.get(record, :value))
-
-      :score ->
-        {index, _p} =
-          probabilities
-          |> Enum.max_by(fn {_k, p} -> parse_float(p) || 0.0 end, fn -> {nil, 0.0} end)
-
-        case index do
-          nil ->
-            nil
-
-          index when is_integer(index) ->
-            Enum.at(List.wrap(levels), index) || Integer.to_string(index)
-
-          index ->
-            index
-        end
-
-      kind when kind in [:extraction, :evidence] ->
-        # The v0 row carries the cast value, not the status — a selector
-        # over the status vocabulary has nothing to match on (§1.2: nulls
-        # carry no meaning).
-        nil
-
-      _kind ->
-        normalize_option(Map.get(record, :value))
+      :noul -> collapse_noul(probabilities)
+      :choice -> normalize_option(Map.get(record, :value))
+      :score -> collapse_score(probabilities, levels)
+      # The v0 row carries the cast value, not the status — a selector
+      # over the status vocabulary has nothing to match on (§1.2: nulls
+      # carry no meaning).
+      kind when kind in [:extraction, :evidence] -> nil
+      _kind -> normalize_option(Map.get(record, :value))
     end
   end
 
   def collapse(_record, _levels), do: nil
+
+  # The Noul's derived two-leg distribution: the winning side.
+  defp collapse_noul(probabilities) do
+    p_true = parse_float(probabilities["true"])
+    p_false = parse_float(probabilities["false"])
+
+    if p_true != nil and p_false != nil and p_true >= p_false, do: true, else: false
+  end
+
+  # The Score's winning level, by argmax over the recorded distribution —
+  # the same derivation the cache rebuild applies. Without the question's
+  # levels, the winner is its distribution index.
+  defp collapse_score(probabilities, levels) do
+    {index, _p} =
+      probabilities
+      |> Enum.max_by(fn {_k, p} -> parse_float(p) || 0.0 end, fn -> {nil, 0.0} end)
+
+    case index do
+      nil ->
+        nil
+
+      index when is_integer(index) ->
+        Enum.at(List.wrap(levels), index) || Integer.to_string(index)
+
+      index ->
+        index
+    end
+  end
 
   defp parse_float(nil), do: nil
 

@@ -200,51 +200,77 @@ defmodule AshJudgments.Exploration.ProposalFragment.Changes.DeriveProposal do
 
   @impl true
   def change(changeset, _opts, _context) do
-    Ash.Changeset.before_action(changeset, fn changeset ->
-      case validate_identity(changeset) do
-        {:ok, identity} ->
-          question_hash = Canonical.question_hash(identity)
-
-          record_hash =
-            changeset.attributes
-            |> Enum.reject(fn {k, v} -> MapSet.member?(@payload_keys, k) or is_nil(v) end)
-            |> Map.new(fn {k, v} -> {Atom.to_string(k), canonical_value(v)} end)
-            |> Map.put("question_hash", question_hash)
-            |> Canonical.digest()
-
-          changeset
-          |> Ash.Changeset.force_change_attribute(:question_hash, question_hash)
-          |> Ash.Changeset.force_change_attribute(:record_hash, record_hash)
-
-        {:error, message} ->
-          Ash.Changeset.add_error(changeset, ArgumentError.exception(message))
-      end
-    end)
+    Ash.Changeset.before_action(changeset, &derive/1)
   end
+
+  defp derive(changeset) do
+    case validate_identity(changeset) do
+      {:ok, identity} -> derive_hash(changeset, identity)
+      {:error, message} -> Ash.Changeset.add_error(changeset, ArgumentError.exception(message))
+    end
+  end
+
+  defp derive_hash(changeset, identity) do
+    question_hash = Canonical.question_hash(identity)
+
+    record_hash =
+      changeset.attributes
+      |> Enum.reject(fn {k, v} -> MapSet.member?(@payload_keys, k) or is_nil(v) end)
+      |> Map.new(fn {k, v} -> {Atom.to_string(k), canonical_value(v)} end)
+      |> Map.put("question_hash", question_hash)
+      |> Canonical.digest()
+
+    changeset
+    |> Ash.Changeset.force_change_attribute(:question_hash, question_hash)
+    |> Ash.Changeset.force_change_attribute(:record_hash, record_hash)
+  end
+
+  # The identity checks, one clause each — a malformed identity is a named
+  # validation error, never a silent digest of garbage (law 4).
+  @identity_checks [:answer_type, :instructions, :options, :version, :state_contract]
 
   defp validate_identity(changeset) do
     identity = Ash.Changeset.get_attribute(changeset, :identity) || %{}
 
-    cond do
-      not is_atom(identity[:answer_type]) ->
-        {:error, "a proposal identity needs an answer_type module"}
-
-      is_nil(identity[:instructions]) ->
-        {:error, "a proposal identity needs the person's instructions"}
-
-      not is_list(identity[:options]) or identity[:options] == [] ->
-        {:error, "a proposal identity needs its options (the answer vocabulary)"}
-
-      identity[:version] != 1 ->
-        {:error, "a proposal identity is version 1 — declaration bumps it"}
-
-      not (is_nil(identity[:state_contract]) or is_binary(identity[:state_contract])) ->
-        {:error, "a proposal identity's state_contract is a digest or nil"}
-
-      true ->
-        {:ok, identity}
+    case Enum.find_value(@identity_checks, &identity_error(identity, &1)) do
+      nil -> {:ok, identity}
+      message -> {:error, message}
     end
   end
+
+  # The checks pattern-match the identity's keys: a missing key falls
+  # through to the clause naming what the identity needs.
+  defp identity_error(%{answer_type: answer_type}, :answer_type) when is_atom(answer_type),
+    do: nil
+
+  defp identity_error(_identity, :answer_type),
+    do: "a proposal identity needs an answer_type module"
+
+  defp identity_error(%{instructions: instructions}, :instructions)
+       when not is_nil(instructions),
+       do: nil
+
+  defp identity_error(_identity, :instructions),
+    do: "a proposal identity needs the person's instructions"
+
+  defp identity_error(%{options: [_ | _]}, :options), do: nil
+
+  defp identity_error(_identity, :options),
+    do: "a proposal identity needs its options (the answer vocabulary)"
+
+  defp identity_error(%{version: 1}, :version), do: nil
+
+  defp identity_error(_identity, :version),
+    do: "a proposal identity is version 1 — declaration bumps it"
+
+  defp identity_error(%{state_contract: nil}, :state_contract), do: nil
+
+  defp identity_error(%{state_contract: state_contract}, :state_contract)
+       when is_binary(state_contract),
+       do: nil
+
+  defp identity_error(_identity, :state_contract),
+    do: "a proposal identity's state_contract is a digest or nil"
 
   defp canonical_value(v) when is_atom(v) and not is_boolean(v), do: Atom.to_string(v)
   defp canonical_value(v), do: v

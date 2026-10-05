@@ -120,15 +120,24 @@ defmodule AshJudgments.Exploration.Run do
   defp limit(opts),
     do: min(opts[:limit] || Exploration.default_subjects(), Exploration.hard_cap())
 
+  # The exploratory family is nil — nothing to pin against admission; the
+  # profile's region guard and residency policy still run (§4.1). A
+  # refused resolution fails the run with the profile's own error.
+  #
+  # The call goes through apply/3 deliberately: dialyzer narrows
+  # Profile.model_spec/3's success typing to its error union for a
+  # family-nil question (the same false-positive shape profile.ex's
+  # resolver carries; ADR 0007 keeps the job advisory), and that wrong
+  # inference once cascaded through this whole module. The call is
+  # dynamic by construction anyway — the profile is host config.
   defp resolve_model(profile, opts) do
-    # The exploratory family is nil — nothing to pin against admission;
-    # the profile's region guard and residency policy still run (§4.1).
-    case AshJudgments.Profile.model_spec(%{profile: profile, family: nil}, %{}, %{
-           tenant: opts[:tenant]
-         }) do
-      {:ok, spec} -> {:ok, spec}
-      {:error, error} -> raise error
-    end
+    apply(AshJudgments.Profile, :model_spec, [
+      %{profile: profile, family: nil},
+      %{},
+      %{
+        tenant: opts[:tenant]
+      }
+    ])
   end
 
   defp execute(subject_module, question, subjects, model_spec, profile, opts) do
@@ -181,7 +190,7 @@ defmodule AshJudgments.Exploration.Run do
       record ->
         # A cache hit writes no observation (§6.3) — the caller references
         # the existing one, and it does not count as an invocation (§4.4).
-        {:ok, answer} = Cache.rebuild_answer(record, question_map(env))
+        {:ok, answer} = Cache.rebuild_answer(record, exploratory_question(env))
 
         %{
           subject_type: subject_type,
@@ -224,7 +233,7 @@ defmodule AshJudgments.Exploration.Run do
           key_inputs: key_inputs
         }
 
-        case Ledger.Record.record(question_map(env), answer, judge_context, timing, %{}) do
+        case Ledger.Record.record(exploratory_question(env), answer, judge_context, timing, %{}) do
           {:ok, judgment} ->
             %{
               subject_type: subject_type,
@@ -296,9 +305,12 @@ defmodule AshJudgments.Exploration.Run do
     %Ash.Resource.Actions.Action{name: :exploratory, returns: type, constraints: constraints}
   end
 
-  # The recorder's input shape: the registry question struct's duck type.
-  defp question_map(env) do
-    %{
+  # The registry question struct, built for the ad-hoc question: the
+  # recorder and the cache rebuild read their contract off it. It never
+  # enters the registry — it is the recorded identity of an undeclared
+  # question, namespace-addressed and hash-pinned.
+  defp exploratory_question(env) do
+    %AshJudgments.Registry.Question{
       name: :exploratory,
       question_id: Exploration.question_id(env.subject_module),
       question_hash: env.identity_hash,
