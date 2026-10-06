@@ -14,7 +14,17 @@ defmodule AshJudgments.TestRepo do
 
   use AshPostgres.Repo, otp_app: :ash_judgments, warn_on_missing_ash_functions?: false
 
-  def installed_extensions, do: ["uuid-ossp", "citext", "ash-functions"]
+  # `btree_gist` is the Phase 0 (PostgreSQL 18) temporal-readiness floor: the
+  # later temporal surface builds exclusion constraints over range types, and
+  # every non-GiST-native column in such a constraint needs this extension.
+  # The migration generator diffs this list against the extensions snapshot
+  # and emits the CREATE EXTENSION migration when the temporal surface lands.
+  # CI runs `postgres:16`, where it is equally available (contrib ships with
+  # the server image).
+  def installed_extensions, do: ["uuid-ossp", "citext", "ash-functions", "btree_gist"]
 
-  def min_pg_version, do: %Version{major: 14, minor: 0, patch: 0}
+  # Phase 0 pins the declared floor to the server the programme develops
+  # against (PostgreSQL 18; the ash_enterprise devenv provides 18.4). This is
+  # ash_postgres' feature-gating declaration, not a runtime server check.
+  def min_pg_version, do: %Version{major: 18, minor: 0, patch: 0}
 end
