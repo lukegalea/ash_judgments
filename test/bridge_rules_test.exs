@@ -243,10 +243,14 @@ defmodule AshJudgments.BridgeRulesTest do
 
     test "the materialiser never deletes stale or expired facts — only a superseding decision moves them" do
       # A stale fact (the subject's digest moved past it).
-      {verdict, decision} = materialise!()
+      {verdict, decision} =
+        materialise!(effective_at: ~U[2026-01-01 00:00:00Z])
+
       assert verdict == :materialised
 
-      rows_before = Ash.read!(AshJudgments.Test.Fact) |> length()
+      rows_before =
+        Ash.read!(AshJudgments.Test.Fact, as_of: ~U[2026-01-15 00:00:00Z]) |> length()
+
       assert rows_before == 1
 
       # Time passes; nothing writes. The fact is stale on the read side…
@@ -261,12 +265,17 @@ defmodule AshJudgments.BridgeRulesTest do
       # …and the row is STILL THERE, unsuperseded: staleness never moves a
       # fact. Even an omitted decision supersedes (a superseding decision);
       # there is no delete path at all.
-      materialise!(result: :omitted)
+      materialise!(result: :omitted, effective_at: ~U[2026-02-01 00:00:00Z])
 
-      history = Ash.read!(AshJudgments.Test.Fact)
+      # The omission TRUNCATES the period (the row is not visible as-of
+      # now) but nothing is deleted: the original row survives in history
+      # — an as-of read before the omission still answers it.
+      history =
+        Ash.read!(AshJudgments.Test.Fact, as_of: ~U[2026-01-15 00:00:00Z])
+
       assert length(history) == rows_before
 
-      # The original row survives in history, superseded but not deleted.
+      # The original row survives in history, truncated but not deleted.
       superseded = Enum.find(history, &(&1.id == @observation_id))
       assert superseded != nil
     end
