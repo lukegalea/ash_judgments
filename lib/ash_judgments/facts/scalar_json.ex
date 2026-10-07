@@ -51,6 +51,23 @@ defmodule AshJudgments.Facts.ScalarJson do
 
   def cast_stored(value, _constraints), do: {:ok, value}
 
+  # Event-data round-trip (ash_events): the wrapper helpers dump attribute
+  # values into event `data` with dump_to_embedded and hand them back to
+  # the action on replay, where cast_input runs again. The dumped form must
+  # therefore be the DECODED term — not this type's canonical text — or a
+  # replayed write double-encodes (the value "\"urgent\"" would read as a
+  # literal quote-wrapped string). Decoding here is exactly cast_stored.
+  @impl Ash.Type
+  def dump_to_embedded(nil, _constraints), do: {:ok, nil}
+
+  def dump_to_embedded(text, constraints) when is_binary(text) do
+    # cast_stored always succeeds for text (undecodable text passes
+    # through), so no error arm exists.
+    cast_stored(text, constraints)
+  end
+
+  def dump_to_embedded(value, _constraints), do: {:ok, value}
+
   defp encode(value) when is_binary(value), do: {:ok, Jason.encode!(value)}
   defp encode(value) when is_boolean(value), do: {:ok, Atom.to_string(value)}
   defp encode(value) when is_integer(value), do: {:ok, Integer.to_string(value)}

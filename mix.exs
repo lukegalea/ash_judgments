@@ -60,7 +60,7 @@ defmodule AshJudgments.MixProject do
       # Core: the declaration substrate and the upstream call this package
       # builds on. Transport (HTTP client, provider, answer types) is owned
       # by ash_ai + req_llm — this package deliberately ships none.
-      {:ash, "~> 3.33"},
+      {:ash, "~> 3.34"},
       {:ash_ai, "~> 1.1"},
       {:req_llm, "~> 1.24"},
       {:spark, "~> 2.2"},
@@ -104,7 +104,11 @@ defmodule AshJudgments.MixProject do
       # degrade to the events.
       {:telemetry_metrics, "~> 1.0", optional: true},
       {:ash_decisions, github: "lukegalea/ash_decisions", optional: true},
-      {:ash_events, "~> 0.7", optional: true},
+      {:ash_events,
+       github: "lukegalea/ash_events",
+       branch: "temporal-as-of-support-0.7",
+       optional: true,
+       override: true},
       {:opentelemetry_ash, "~> 0.1", optional: true},
 
       # The test support app persists its resources on a real PostgreSQL
