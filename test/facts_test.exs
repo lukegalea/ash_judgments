@@ -13,6 +13,8 @@ defmodule AshJudgments.FactsTest do
 
   use ExUnit.Case, async: false
 
+  require Ash.Query
+
   import AshJudgments.Test.ProfileHelpers
 
   @moduletag :db
@@ -94,14 +96,23 @@ defmodule AshJudgments.FactsTest do
     end
 
     test "omitted writes no fact and supersedes a prior one (unknown, never out)" do
-      assert materialise!() == :materialised
-      assert materialise!(result: :omitted) == :superseded
+      # Pin the instants: the fact takes effect 2h ago, the omission
+      # truncates it 1h ago (history preserved; membership unknown since).
+      assert materialise!(effective_at: hours_from_now(-2)) == :materialised
 
-      # The current read is empty; the superseded row stays in history.
+      assert materialise!(result: :omitted, effective_at: hours_from_now(-1)) == :superseded
+
+      # The as-of-now read is empty — the predicate returns to unknown.
       assert current_facts() == []
 
-      [superseded] = Ash.read!(AshJudgments.Test.Fact)
-      assert superseded.superseded_by != nil
+      # The truncated period stays in history: as of before the omission
+      # the fact still answers.
+      [truncated] =
+        Ash.read!(AshJudgments.Test.Fact,
+          as_of: hours_from_now(-1) |> DateTime.add(-1, :second)
+        )
+
+      assert truncated.holds == true
 
       # Membership reads unknown after the omission.
       assert {:unknown, :no_fact} =
@@ -122,21 +133,37 @@ defmodule AshJudgments.FactsTest do
     end
 
     test "a person admission supersedes freely (the reviewer is the author of record)" do
-      assert materialise!(grade: :grant) == :materialised
+      # Pin the two admissions' effective_at so the as-of read between them
+      # is deterministic (the periods split at the pinned instants).
+      assert materialise!(grade: :grant, effective_at: hours_from_now(-2)) == :materialised
 
-      assert materialise!(grade: :person, value: "routine", holds: false) ==
-               :materialised
+      assert materialise!(
+               grade: :person,
+               value: "routine",
+               holds: false,
+               effective_at: hours_from_now(-1)
+             ) == :materialised
 
       fact = current()
       assert fact.admission_grade == :person
       assert fact.holds == false
 
       # The old fact is superseded, not deleted (facts are superseded,
-      # never edited — ADR 0044).
+      # never edited — ADR 0044). Temporally: the grant period is closed
+      # and preserved — an as-of read before the revision still answers
+      # the grant fact.
       assert length(current_facts()) == 1
-      history = Ash.read!(AshJudgments.Test.Fact)
-      assert length(history) == 2
-      assert Enum.any?(history, &(&1.superseded_by != nil))
+
+      subject_id = @subject["id"]
+
+      history_at_revision =
+        AshJudgments.Test.Fact
+        |> Ash.Query.filter(subject_id == ^subject_id)
+        |> Ash.Query.as_of(hours_from_now(-1) |> DateTime.add(-1, :second))
+        |> Ash.read!()
+
+      assert length(history_at_revision) == 1
+      assert hd(history_at_revision).admission_grade == :grant
     end
 
     test "materialisation is idempotent: the same admission twice leaves one row" do
@@ -375,7 +402,12 @@ defmodule AshJudgments.FactsTest do
             admission_id:
               "aaaaaaaa-1111-4111-8111-#{String.pad_leading(Integer.to_string(i), 12, "0")}",
             subject_state_digest:
-              "sha256:" <> String.duplicate(Integer.to_string(rem(i, 3) + 1), 64)
+              "sha256:" <> String.duplicate(Integer.to_string(rem(i, 3) + 1), 64),
+            # A deterministic effective_at per decision — the period split
+            # point, pinned exactly like the ids so the replayed periods
+            # rebuild identically (the as_of capture records it; replay
+            # re-invokes at it).
+            effective_at: ~U[2026-01-01 00:00:00Z] |> DateTime.add(i * 3600, :second)
           }
         end
 
@@ -410,7 +442,7 @@ defmodule AshJudgments.FactsTest do
         :valid_until,
         :admission_grade,
         :admission_id,
-        :superseded_by
+        :valid_at
       ])
       |> Ash.read!()
       |> Enum.map(fn fact ->
@@ -423,6 +455,11 @@ defmodule AshJudgments.FactsTest do
     end
 
     defp snapshot(table), do: Enum.sort(table)
+
+    defp hours_before_now(h), do: DateTime.add(DateTime.utc_now(), -h * 3600, :second)
+
+    defp hours_from_now(h),
+      do: DateTime.add(DateTime.utc_now(), h * 3600, :second) |> DateTime.truncate(:second)
 
     defp normalize(%DateTime{} = dt), do: DateTime.to_iso8601(dt)
     defp normalize(v) when is_map(v), do: v
