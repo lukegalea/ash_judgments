@@ -188,6 +188,19 @@ defmodule AshJudgments.Cache do
            confidence: parse_float_or_nil(record.confidence)
          )}
 
+      :evidence ->
+        # The evidence answer rebuilds from the recorded row: the
+        # disposition (the collapsed value), the distribution, the
+        # confidence — and its cited atoms, which the recorder stored as
+        # the row's atom_ids (§5.5 lists source_ids for evidence).
+        {:ok,
+         struct(AshJudgments.Evaluate.Evidence,
+           value: rebuild_value(record.value),
+           probabilities: rebuild_probabilities(record.probabilities),
+           confidence: parse_float_or_nil(record.confidence),
+           source_ids: record.atom_ids || []
+         )}
+
       other ->
         {:error, "cannot rebuild answer of kind #{inspect(other)}"}
     end

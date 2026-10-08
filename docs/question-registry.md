@@ -194,10 +194,10 @@ the affected resources recompile (the transformer declares it an
 | Option | Type | Default | Notes |
 |---|---|---|---|
 | `name` | atom | required | slot name (in the id, not the hash) |
-| `type` | `AshAi.Evaluate.Noul \| Choice \| Score \| AshJudgments.Evaluate.Extraction` | required | `Evidence` ships with UP-AI-EVIDENCE-TYPE |
+| `type` | `AshAi.Evaluate.Noul \| Choice \| Score \| AshJudgments.Evaluate.Extraction \| AshJudgments.Evaluate.Evidence` | required | `Evidence`: the frozen §5.5 disposition set (`supports \| contradicts \| insufficient \| not_applicable`, + `wrong_scope` when declared) |
 | `instructions` | string \| structured | required | wording; in the hash as declared |
 | `criteria` | map \| list | — | per-option descriptions; in the hash |
-| `constraints` | keyword | `[]` | `of:` for Choice, `levels:` for Score, `of:` (required) + `source_enum:` for Extraction |
+| `constraints` | keyword | `[]` | `of:` for Choice, `levels:` for Score, `of:` (required) + `source_enum:` for Extraction, `wrong_scope:` + `source_enum:` for Evidence |
 | `options_from` | `{Resource, :attribute}` | — | Choice options from the attribute's constraint |
 | `source_enum_from` | `{Resource, :attribute}` | — | Extraction source_ids narrowed to the packet's atom ids (required for an Extraction, or explicit `source_enum:`) |
 | `abstain_option` | atom | `:insufficient` | appended to Choice options |

@@ -18,7 +18,8 @@ defmodule AshJudgments.Registry.Dsl do
     AshAi.Evaluate.Noul,
     AshAi.Evaluate.Choice,
     AshAi.Evaluate.Score,
-    AshJudgments.Evaluate.Extraction
+    AshJudgments.Evaluate.Extraction,
+    AshJudgments.Evaluate.Evidence
   ]
 
   @question_schema [
@@ -31,13 +32,13 @@ defmodule AshJudgments.Registry.Dsl do
       type: {:in, @answer_types},
       required: true,
       doc:
-        "The answer type: `AshAi.Evaluate.Noul`, `AshAi.Evaluate.Choice`, `AshAi.Evaluate.Score` or `AshJudgments.Evaluate.Extraction` (the typed extraction: status + value + source ids). The `Evidence` type ships with UP-AI-EVIDENCE-TYPE."
+        "The answer type: `AshAi.Evaluate.Noul`, `AshAi.Evaluate.Choice`, `AshAi.Evaluate.Score`, `AshJudgments.Evaluate.Extraction` (the typed extraction: status + value + source ids) or `AshJudgments.Evaluate.Evidence` (the evidence outcome: the frozen §5.5 disposition + distribution + confidence + cited atom ids)."
     ],
     constraints: [
       type: :keyword_list,
       default: [],
       doc:
-        "Answer-type constraints — for a Choice, `of:` (an `Ash.Type.Enum` module or an option list); for a Score, `levels:`; for an Extraction, `of:` (REQUIRED — the value's Ash type + inner `constraints:`) and `source_enum:` (an explicit atom-id list)."
+        "Answer-type constraints — for a Choice, `of:` (an `Ash.Type.Enum` module or an option list); for a Score, `levels:`; for an Extraction, `of:` (REQUIRED — the value's Ash type + inner `constraints:`) and `source_enum:` (an explicit atom-id list); for an Evidence, `wrong_scope:` (whether the optional fifth disposition is in the outcome set) and `source_enum:` (an explicit atom-id list)."
     ],
     options_from: [
       type: {:tuple, [{:spark, Ash.Resource}, :atom]},
@@ -53,7 +54,7 @@ defmodule AshJudgments.Registry.Dsl do
       type: :atom,
       default: :insufficient,
       doc:
-        "Appended to a Choice's options as the first-class abstention (law 7). Ignored for Noul and Score."
+        "Appended to a Choice's options as the first-class abstention (law 7). Ignored for Noul, Score and Evidence (an Evidence question's abstention is structural: `insufficient` is in the frozen outcome set)."
     ],
     instructions: [
       type: :any,

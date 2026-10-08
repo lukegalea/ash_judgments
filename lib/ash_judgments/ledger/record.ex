@@ -182,13 +182,17 @@ defmodule AshJudgments.Ledger.Record do
     end
   end
 
-  # The extraction's cited atoms ARE the record's atoms_considered
-  # (§5.5): source ids only, never quotations (law 8). Other kinds keep
-  # the caller-supplied atom_ids (the evidence-work path).
+  # The extraction's AND the evidence's cited atoms ARE the record's
+  # atoms_considered (§5.5 lists source_ids for both kinds): source ids
+  # only, never quotations (law 8). Other kinds keep the caller-supplied
+  # atom_ids (the evidence-work path).
   defp answer_atom_ids(question, answer, refs) do
     case answer_kind(question) do
-      :extraction -> get_answer_field(answer, :source_ids) || refs[:atom_ids]
-      _kind -> refs[:atom_ids]
+      kind when kind in [:extraction, :evidence] ->
+        get_answer_field(answer, :source_ids) || refs[:atom_ids]
+
+      _kind ->
+        refs[:atom_ids]
     end
   end
 

@@ -126,6 +126,17 @@ defmodule AshJudgments.Registry.Transformers do
   defp resolve_options(%{type: AshJudgments.Evaluate.Extraction}, _module, _dsl_state),
     do: {:ok, Enum.map(AshJudgments.Evaluate.Extraction.statuses(), &Atom.to_string/1)}
 
+  # [L]2, same rule: an evidence question's identity options are the FROZEN
+  # disposition enum (§5.5) — widened by `wrong_scope:` when declared. The
+  # packet's source-id enum narrows into the wire schema, not the identity.
+  defp resolve_options(%{type: AshJudgments.Evaluate.Evidence} = question, _module, _dsl_state) do
+    {:ok,
+     Enum.map(
+       AshJudgments.Evaluate.Evidence.dispositions(question.constraints),
+       &Atom.to_string/1
+     )}
+  end
+
   defp resolve_options(%{type: AshAi.Evaluate.Score} = question, module, _dsl_state) do
     case question.constraints[:levels] do
       [_ | _] = levels ->
@@ -353,6 +364,18 @@ defmodule AshJudgments.Registry.Transformers do
     inner = declared_constraint(question, :constraints) || []
 
     base = [of: declared_constraint(question, :of), constraints: inner]
+
+    case declared_constraint(question, :source_enum) do
+      nil -> base
+      enum -> Keyword.put(base, :source_enum, enum)
+    end
+  end
+
+  # The evidence's judge action return type carries the declared outcome
+  # widening and the narrowed source enum — the constraint that validates
+  # the attribute is the constraint the record holds.
+  defp return_constraints(%{type: AshJudgments.Evaluate.Evidence} = question) do
+    base = [wrong_scope: declared_constraint(question, :wrong_scope) || false]
 
     case declared_constraint(question, :source_enum) do
       nil -> base

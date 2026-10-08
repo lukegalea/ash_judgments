@@ -127,7 +127,8 @@ defmodule AshJudgments.Exploration do
 
   Options are derived from the answer type when not given (Noul
   `[true, false]`; Score its `constraints levels:`; Choice its `of` enum or
-  list with the abstain option appended) — the same constraint the registry
+  list with the abstain option appended; Evidence the frozen §5.5 outcome
+  set, widened by a declared `wrong_scope:`) — the same constraint the registry
   transformer applies to declared questions.
   """
   @spec identity(map()) :: identity()
@@ -162,6 +163,19 @@ defmodule AshJudgments.Exploration do
 
   defp options_from_type(%{type: AshJudgments.Evaluate.Extraction}),
     do: Enum.map(AshJudgments.Evaluate.Extraction.statuses(), &Atom.to_string/1)
+
+  # The exploratory evidence question's options are the TYPE's frozen
+  # outcome set (§5.5), widened by a declared `wrong_scope:` — the same
+  # derivation the registry transformer applies to declared questions.
+  defp options_from_type(%{type: AshJudgments.Evaluate.Evidence} = question),
+    do:
+      Enum.map(
+        AshJudgments.Evaluate.Evidence.dispositions(
+          get_in(question, [:constraints, :wrong_scope]) ||
+            get_in(question, ["constraints", "wrong_scope"]) || false
+        ),
+        &Atom.to_string/1
+      )
 
   defp options_from_type(%{type: AshAi.Evaluate.Score} = question) do
     levels =

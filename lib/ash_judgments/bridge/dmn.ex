@@ -127,7 +127,7 @@ defmodule AshJudgments.Bridge.Dmn do
         :noul -> Map.merge(base, flatten_noul(answer, key))
         :choice -> Map.merge(base, flatten_choice(answer, question, key))
         :score -> Map.merge(base, flatten_score(answer, question, key))
-        :evidence -> flatten_evidence(answer, key)
+        :evidence -> Map.merge(base, flatten_evidence(answer, key))
         :extraction -> flatten_extraction(answer_map, answer, key, base)
       end
     end
@@ -190,7 +190,13 @@ defmodule AshJudgments.Bridge.Dmn do
   defp flatten_evidence(answer, key) do
     probabilities = probabilities_of(answer)
 
-    supported = ["supports", "contradicts", "insufficient", "not_applicable"]
+    # The disposition vocabulary is the TYPE's frozen outcome set (§5.5)
+    # — one source of truth, not a second list here. The flattened keys
+    # themselves are the frozen flattening table: `p_<disposition>` +
+    # `confidence`, with `p_wrong_scope` where the answer carries it.
+    supported =
+      AshJudgments.Evaluate.Evidence.dispositions()
+      |> Enum.map(&Atom.to_string/1)
 
     base_inputs =
       Map.new(supported, fn disposition ->
@@ -205,8 +211,17 @@ defmodule AshJudgments.Bridge.Dmn do
   defp wrong_scope_inputs(answer, key) do
     probabilities = probabilities_of(answer)
 
-    if Map.has_key?(probabilities, :wrong_scope) or Map.has_key?(probabilities, "wrong_scope") do
-      %{"#{key}__p_wrong_scope" => decimal_string(Map.get(probabilities, :wrong_scope))}
+    # The Evidence type keeps STRING-keyed probabilities (the wire's
+    # shape); plain-map answers may carry either key shape.
+    wrong_scope =
+      cond do
+        Map.has_key?(probabilities, "wrong_scope") -> Map.get(probabilities, "wrong_scope")
+        Map.has_key?(probabilities, :wrong_scope) -> Map.get(probabilities, :wrong_scope)
+        true -> nil
+      end
+
+    if wrong_scope != nil do
+      %{"#{key}__p_wrong_scope" => decimal_string(wrong_scope)}
     else
       %{}
     end
