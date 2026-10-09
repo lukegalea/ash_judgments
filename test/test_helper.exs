@@ -19,6 +19,7 @@
   AshJudgments.Test.Certification,
   AshJudgments.Test.CalibrationRun,
   AshJudgments.Test.CalibrationSample,
+  AshJudgments.Test.CountingLedger,
   AshJudgments.Test.Bpmn.Definition,
   AshJudgments.Test.Bpmn.Instance,
   AshJudgments.Test.Bpmn.Token,
