@@ -197,3 +197,55 @@ defmodule AshJudgments.Test.FailingLedger.AlwaysFails do
     {:error, ArgumentError.exception("forced ledger failure (test sentinel)")}
   end
 end
+
+defmodule AshJudgments.Test.CountingLedger do
+  @moduledoc """
+  The observation-ledger read counter (the Phase 4 C1 test double): every
+  read attempt through it increments a `:persistent_term` counter, so a
+  test can prove the materialiser's absent-reference path never touches
+  the ledger. `Ash.DataLayer.Simple` with no seed data: any read counts —
+  and finds nothing.
+  """
+
+  use Ash.Resource,
+    domain: AshJudgments.Test.Domain,
+    data_layer: Ash.DataLayer.Simple
+
+  attributes do
+    attribute :id, :uuid, primary_key?: true, allow_nil?: false, public?: true
+    attribute :state_digest, :string, public?: true
+  end
+
+  actions do
+    defaults [:read]
+  end
+
+  preparations do
+    prepare {__MODULE__.CountRead, []}
+  end
+
+  @doc "Read attempts counted since the last reset."
+  def read_count do
+    :persistent_term.get({__MODULE__, :reads}, 0)
+  end
+
+  @doc "Zeroes the read counter."
+  def reset_read_count do
+    :persistent_term.put({__MODULE__, :reads}, 0)
+  end
+end
+
+defmodule AshJudgments.Test.CountingLedger.CountRead do
+  @moduledoc false
+  # Counts one read attempt. `:persistent_term` — node-global, so the
+  # count survives Ash's internal process spawns; the tests using it run
+  # `async: false`.
+  use Ash.Resource.Preparation
+
+  @impl true
+  def prepare(query, _opts, _context) do
+    key = {AshJudgments.Test.CountingLedger, :reads}
+    :persistent_term.put(key, :persistent_term.get(key, 0) + 1)
+    query
+  end
+end

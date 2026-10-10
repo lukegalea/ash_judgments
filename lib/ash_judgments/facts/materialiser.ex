@@ -38,6 +38,24 @@ defmodule AshJudgments.Facts.Materialiser do
   unchanged. Division of labor: **temporal = how rows version; the
   materialiser = why rows change**.
 
+  ### The evidence assertion (Phase 4 C1, opt-in)
+
+  A decision that carries an evidence reference is ASSERTED before
+  anything is written: caller-side, pre-transaction, the materialiser
+  reads the observation by primary key from the configured ledger
+  (`config :ash_judgments, :ledger`) and requires the observation's
+  recorded input hash (its `state_digest` — what the §4.4 cache key names
+  `input_hash`) to equal the decision's `subject_state_digest`. A
+  mismatch raises `AshJudgments.Facts.Errors.EvidenceMismatch` — naming
+  the predicate and both digests — and nothing is written. The reference
+  is `decision[:evidence_observation_id]`, or a preloaded observation
+  struct passed as `decision[:evidence_observation]` (which skips the
+  read). A nil-or-absent reference skips the assertion entirely: the
+  provable-only path is byte-identical. The read is of immutable
+  envelope-class ledger data, so the assertion is deterministic on replay
+  — it strengthens the materialise(clear+replay) equivalence property,
+  never weakens it.
+
   Every write is a fragment action that accepts its fields as input and
   computes only pure derived fields — replay-safe like the ledger (the
   materialiser's own calls are deterministic in the subject, predicate
@@ -59,6 +77,13 @@ defmodule AshJudgments.Facts.Materialiser do
   `admission_id`, `id` (a deterministic id makes the write an
   idempotency key for the caller) and — on temporal hosts —
   `effective_at` (the instant the fact takes effect; now by default).
+  Optional evidence reference (Phase 4 C1): `evidence_observation_id`
+  (read from the configured ledger) or `evidence_observation` (a
+  preloaded observation struct — no read); when either is present the
+  observation's input hash is asserted equal to `subject_state_digest`
+  pre-transaction, and a mismatch raises
+  `AshJudgments.Facts.Errors.EvidenceMismatch` before anything is
+  written.
 
   Returns `{:ok, verdict}` where the verdict is one of `:materialised`,
   `:unchanged`, `:kept_person_fact`, `:superseded`, `:no_fact` — plain
@@ -68,7 +93,8 @@ defmodule AshJudgments.Facts.Materialiser do
   def materialise(decision, opts \\ []) do
     decision = Map.new(decision)
 
-    with :ok <- check_predicate(decision) do
+    with :ok <- check_predicate(decision),
+         :ok <- assert_evidence(decision) do
       resource = facts_resource(opts)
       grade = decision[:grade] || :grant
 
@@ -88,7 +114,10 @@ defmodule AshJudgments.Facts.Materialiser do
   `verdict` fields: `judgment_id` (the observation's id, carried as the
   admission provenance), the `subject`, `predicate`, `human_value` (the
   fact's JSON object), `holds`, and the optional `scope`,
-  `subject_state_digest`, `valid_until`, `admission_id`, `id`.
+  `subject_state_digest`, `valid_until`, `admission_id`, `id` — plus the
+  same optional evidence reference as `materialise/2`
+  (`evidence_observation_id` or a preloaded `evidence_observation`;
+  Phase 4 C1).
   """
   @spec materialise_verdict(map(), keyword()) :: {:ok, atom()} | {:error, term()}
   def materialise_verdict(verdict, opts \\ []) when is_map(verdict) do
@@ -319,6 +348,75 @@ defmodule AshJudgments.Facts.Materialiser do
     else
       :ok
     end
+  end
+
+  ## The evidence assertion (Phase 4 C1): caller-side, PRE-transaction —
+  ## the observation is read and the digests compared before any write, so
+  ## a mismatch leaves the facts table untouched. A nil-or-absent
+  ## reference is :ok without a read (the provable-only path is unchanged).
+
+  defp assert_evidence(decision) do
+    case decision[:evidence_observation] do
+      nil -> fetch_and_assert_evidence(decision)
+      observation -> assert_evidence_digest(decision, observation)
+    end
+  end
+
+  defp fetch_and_assert_evidence(decision) do
+    case decision[:evidence_observation_id] do
+      nil -> :ok
+      id -> assert_evidence_digest(decision, fetch_observation!(id))
+    end
+  end
+
+  # The observation lives in the host's ledger — the same resource the
+  # registry records through (`config :ash_judgments, :ledger`). Its rows
+  # are immutable envelope-class data, so the read is replay-identical.
+  defp fetch_observation!(id) do
+    case AshJudgments.Ledger.resource() do
+      nil ->
+        raise ArgumentError,
+              "decision carries evidence_observation_id #{inspect(id)} but no observation ledger is " <>
+                "configured; set config :ash_judgments, :ledger to the host ledger resource that " <>
+                "includes AshJudgments.Ledger.Fragment, or pass the preloaded observation as " <>
+                "evidence_observation"
+
+      resource ->
+        case Ash.get(resource, id) do
+          {:ok, nil} ->
+            raise ArgumentError,
+                  "no observation #{inspect(id)} in the configured ledger — a dangling evidence " <>
+                    "reference; nothing was materialised"
+
+          {:ok, observation} ->
+            observation
+
+          {:error, error} ->
+            raise error
+        end
+    end
+  end
+
+  defp assert_evidence_digest(decision, observation) do
+    expected = observation_input_hash(observation)
+    recorded = decision[:subject_state_digest]
+
+    if expected == recorded do
+      :ok
+    else
+      raise AshJudgments.Facts.Errors.EvidenceMismatch,
+        predicate: decision[:predicate],
+        expected: expected,
+        recorded: recorded
+    end
+  end
+
+  # The observation's recorded input hash: the ledger row's `state_digest`
+  # (the §4.4 cache key names it `input_hash`). Atom keys are the Ash
+  # struct's; the string fallback keeps a caller-supplied decoded row
+  # working.
+  defp observation_input_hash(observation) do
+    Map.get(observation, :state_digest) || Map.get(observation, "state_digest")
   end
 
   # The replacing fact's own id when one is given, else the admission's id

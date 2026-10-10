@@ -30,6 +30,7 @@ defmodule AshJudgments.Test.Domain do
     resource(AshJudgments.Test.EventLog)
     resource(AshJudgments.Test.Fact)
     resource(AshJudgments.Test.FailingLedger)
+    resource(AshJudgments.Test.CountingLedger)
     resource(AshJudgments.Test.Banding)
     resource(AshJudgments.Test.Certification)
 

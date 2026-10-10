@@ -139,10 +139,15 @@ What works today:
   admission grade, supersession) whose `subject`/`predicate`/`value`
   attributes are the `AshRules.Evaluator.Set` resource contract; the
   materialiser (admissions and human verdicts keep facts in sync — human
-  entries win, omitted writes no fact, idempotent, replay-equivalent); the
-  derived tri-state/status reads (membership is derived, never stored; stale
-  and expired read `unknown` and queue for reassessment); and the bounded
-  `assess` selection with a priority seam for S1-56's retrieval.
+  entries win, omitted writes no fact, idempotent, replay-equivalent);
+  the materialiser's opt-in evidence assertion (Phase 4 C1): a decision
+  carrying `evidence_observation_id` (or a preloaded observation) is
+  checked pre-transaction against the observation's recorded input hash
+  — a mismatch raises `Facts.Errors.EvidenceMismatch` and writes
+  nothing; the derived tri-state/status reads (membership is derived,
+  never stored; stale and expired read `unknown` and queue for
+  reassessment); and the bounded `assess` selection with a priority seam
+  for S1-56's retrieval.
 - **The DMN bridge and bandings** (`AshJudgments.Bridge.Dmn`,
   `AshJudgments.Banding.Fragment`, `AshJudgments.Banding.CertificationFragment`)
   — flatten recorded answers into FEEL inputs (decimal strings, present
