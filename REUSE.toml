@@ -5,9 +5,10 @@
 version = 1
 
 # Source files carry their own SPDX header; this annotation covers everything
-# else (prose docs, dotfiles, the lockfile) so `reuse lint` stays clean from
-# day one — the cautionary example is ash_agent_tools, whose REUSE state ran
-# red until AST-1 fixed it.
+# else (prose docs, dotfiles, the lockfile, generated JSON that cannot carry
+# an inline header) so `reuse lint` stays clean from day one — the
+# cautionary example is ash_agent_tools, whose REUSE state ran red until
+# AST-1 fixed it.
 [[annotations]]
 path = [
   ".gitignore",
@@ -16,6 +17,7 @@ path = [
   "README.md",
   "mix.lock",
   "priv/judgments/*.json",
+  "priv/resource_snapshots/**/*.json",
   "scripts/extra-docs.baseline",
   "scripts/iron-laws.baseline.json",
   "usage-rules.md",

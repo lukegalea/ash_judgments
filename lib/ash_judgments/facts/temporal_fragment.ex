@@ -76,9 +76,10 @@ defmodule AshJudgments.Facts.TemporalFragment do
     calculate :status,
               :atom,
               expr(
-                cond do
-                  not is_nil(valid_until) and valid_until <= now() -> :expired
-                  true -> :live
+                if not is_nil(valid_until) and valid_until <= now() do
+                  :expired
+                else
+                  :live
                 end
               ),
               constraints: [one_of: [:live, :superseded, :expired]]

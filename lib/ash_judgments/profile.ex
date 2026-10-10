@@ -326,6 +326,14 @@ defmodule AshJudgments.Profile do
   with `req_llm_opts/2` as the action's `req_llm_opts` (the transport
   cannot ride an inline spec).
   """
+  # Dialyzer narrows model_spec/3's success typing to its error union
+  # (the whole-app inference artifact ADR 0007 documents — nothing in
+  # this :dev call graph resolves successfully, so the anonymous
+  # function's `{:ok, spec}` arm reads as unreachable and the function
+  # itself as never returning). The same false-positive shape run.ex's
+  # cascade silences; here it is the one inference point. The
+  # compile-time type checker is the repository's real gate.
+  @dialyzer [{:nowarn_function, resolver: 2}]
   @spec resolver(t() | map(), (map() -> map())) ::
           (map(), map() -> %{provider: atom(), id: String.t()} | String.t())
   def resolver(profile_or_question, transform \\ fn spec -> spec end) do

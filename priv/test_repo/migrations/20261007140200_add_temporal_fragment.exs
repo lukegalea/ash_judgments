@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 ash_judgments contributors <https://github.com/lukegalea/ash_judgments>
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshEvents.TestRepo.Migrations.AddTemporalFragment do
   @moduledoc """
   Converts the test host's facts fixture table to the temporal shape

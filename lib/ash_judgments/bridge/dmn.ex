@@ -307,6 +307,10 @@ defmodule AshJudgments.Bridge.Dmn do
   defp decimal_string(%Decimal{} = value), do: Decimal.to_string(value)
   defp decimal_string(value) when is_binary(value), do: value
 
+  # The only call site passes a `decimal_string/1` product — a decimal
+  # string or nil — so the numeric clause dialyzer proved unreachable
+  # (is_number) is gone; the catch-all keeps nil reading as 0.0 (the
+  # noul's p_false companion).
   defp parse_float(value) when is_binary(value) do
     case Float.parse(value) do
       {f, _} -> f
@@ -314,7 +318,6 @@ defmodule AshJudgments.Bridge.Dmn do
     end
   end
 
-  defp parse_float(value) when is_number(value), do: value * 1.0
   defp parse_float(_), do: 0.0
 
   defp input_key(question), do: to_string(question.name)

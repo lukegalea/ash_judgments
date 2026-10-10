@@ -24,9 +24,9 @@ defmodule AshJudgments.FactsTemporalTest do
 
   require Ash.Query
 
+  alias AshJudgments.Facts.Materialiser
   alias AshJudgments.Test.EventLog
   alias AshJudgments.Test.Fact
-  alias AshJudgments.Facts.Materialiser
 
   @subject %{"type" => "AshJudgments.Test.Appointment", "id" => "temporal-1"}
   @predicate "judgment:v0:AshJudgments.Test.Appointment#judgments/triage_urgency"

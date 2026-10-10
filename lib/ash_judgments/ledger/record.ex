@@ -47,7 +47,7 @@ defmodule AshJudgments.Ledger.Record do
   recorded judgment or the error per the question's record posture.
   """
   @spec record(AshJudgments.Registry.Question.t(), term(), map(), map(), map()) ::
-          {:ok, Ash.Struct.t() | nil} | {:error, term()}
+          {:ok, Ash.Resource.record() | nil} | {:error, term()}
   def record(question, answer, judge_context, timing, context) do
     case Application.get_env(:ash_judgments, :ledger) do
       nil when question.record == :must ->
