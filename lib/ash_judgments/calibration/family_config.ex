@@ -47,7 +47,7 @@ defmodule AshJudgments.Calibration.FamilyConfig do
   }
 
   @doc "The family's config, defaults merged under the host's overrides. Unknown families get the defaults."
-  @spec fetch(atom() | String.t()) :: %{}
+  @spec fetch(atom() | String.t()) :: map()
   def fetch(family) do
     families = Application.get_env(:ash_judgments, :families, %{})
 

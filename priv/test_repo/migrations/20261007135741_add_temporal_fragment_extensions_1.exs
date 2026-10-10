@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 ash_judgments contributors <https://github.com/lukegalea/ash_judgments>
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshJudgments.TestRepo.Migrations.AddTemporalFragmentExtensions1 do
   @moduledoc """
   Installs any extensions that are mentioned in the repo's `installed_extensions/0` callback
