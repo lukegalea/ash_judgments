@@ -134,9 +134,11 @@ What works today:
   `:best_effort` returns the answer and emits
   `[:ash_judgments, :record, :failed]`.
 - **The facts surface and query reads** (`AshJudgments.Facts`,
-  `AshJudgments.Query`) — the materialised-facts fragment (RFC §7.4: subject,
-  predicate, value as JSON, scope, freshness digests, validity,
-  admission grade, supersession) whose `subject`/`predicate`/`value`
+  `AshJudgments.Query`) — the facts fragments in parallel: the temporal
+  `Facts.TemporalFragment` (AST-147/148: RFC §7.4 with validity bookkeeping
+  as a `valid_at` period, `WITHOUT OVERLAPS` uniqueness, supersession
+  bookkeeping deleted, as-of reads) and the legacy `Facts.Fragment`
+  (deprecated, frozen until 1.0) — whose `subject`/`predicate`/`value`
   attributes are the `AshRules.Evaluator.Set` resource contract; the
   materialiser (admissions and human verdicts keep facts in sync — human
   entries win, omitted writes no fact, idempotent, replay-equivalent);
@@ -197,6 +199,58 @@ What works today:
 - It ships no HTTP client, provider behaviour or answer types — upstream `ash_ai` and
   `req_llm` own the wire.
 
+## Replay your admissions
+
+Since 0.2 the package ships **two facts fragments in parallel**. New hosts
+land on the temporal one — `AshJudgments.Facts.TemporalFragment`
+(AST-147/148): the same contract — the set-evaluator fields, `holds`,
+`subject_state_digest`, `valid_until`, grades and provenance — with
+*validity bookkeeping moved into a period*. A revision is a period split at
+the admission's `effective_at`, an omission is a truncate; uniqueness is a
+`WITHOUT OVERLAPS` exclusion on `(subject_type, subject_id, predicate,
+scope_hash)`; and a plain read is an as-of-now read, so the supersession
+bookkeeping (`superseded_by`, `:supersede`, `current?`) is deleted rather
+than carried. The materialiser remains the sole writer, and no §7.2
+normative moves: temporal is *how rows version*; the materialiser is *why
+rows change*.
+
+The legacy `AshJudgments.Facts.Fragment` stays available, frozen and
+deprecated since 0.3 — removal at 1.0, after one soak cycle on the temporal
+fragment. No behavior change is planned on the legacy path.
+
+### Cutting a legacy table over
+
+Facts are derived data — the admission ledger is the source of truth — so a
+cut-over is never SQL translation. You **replay your admissions**: stand the
+new temporal table up beside the old one, stream the recorded admissions in
+`effective_at` order through the same materialiser, and archive the legacy
+table (rename, never drop). The documented pattern is vpm_poc's VPM-51
+first-host cut-over (PR #13): the born-temporal host table
+(`priv/repo/migrations/20261007144815_add_compliance_fact_host.exs`), the
+replay module `AshEnterprise.ComplianceConfig.FactReplay` — `replay/2`
+rebuilds the periods through `AshJudgments.Facts.Materialiser` and
+`archive_legacy/1` renames the old table — and the
+`mix ash_enterprise.compliance_config.replay_fact_admissions` task over the
+recorded admission snapshot. The property the replay leans on is proven by
+the package's equivalence battery: `materialise(clear + replay) ≡
+materialise(live)`, periods included.
+
+Two Phase-4 refinements ride along at cut-over:
+
+- **C1 — the evidence assertion (opt-in).** A decision carrying
+  `evidence_observation_id` (or a preloaded observation) is checked
+  pre-transaction against the observation's recorded input hash; a mismatch
+  raises `AshJudgments.Facts.Errors.EvidenceMismatch` and writes nothing.
+  Hosts pass the reference from day one on the temporal table; absent
+  references leave the provable-only path byte-identical.
+- **C2 — digest periods (permissive).** The host's per-(subject, question)
+  current-digest pointer MAY be kept as digest *periods* (`strategy
+  :context`) — written same-transaction with subject changes — which
+  unlocks as-of staleness: `digest_at(T, subject, question)` against the
+  fact-period's recorded digest, inexpressible in the legacy pointer. The
+  reference implementation is vpm_poc's `add_subject_digest_periods`
+  migration; the RFC text lands at the next errata cycle.
+
 ## Installation
 
 ```elixir
@@ -211,6 +265,16 @@ The core (`ash`, `ash_ai`, `req_llm`, `spark`) comes with it. The concept bridge
 optional: add `ash_decisions`, `ash_rules`, `ash_bpmn`, `ash_compliance`, `ash_events` or
 `opentelemetry_ash` and the matching bridge activates (`AshJudgments.Availability.report/0`
 tells you what is active in a given VM and what each missing dep would unlock).
+
+### The `ash_events` fork pin
+
+The optional `ash_events` integration resolves to this repository's fork
+branch `temporal-as-of-support-0.7` — the complete as-of stream (capture and
+replay of a write's `as_of`, temporal-safe replay wrappers, chronological
+replay; upstream issue #103, carried upstream by our PR #104). Hosts pin the
+fork branch until upstream merges #104. Policy: any upstream drift on replay
+ordering or wrapper safety re-opens the replay test — the suite's
+replay-equivalence proofs — before a host bumps its pin.
 
 ## Development
 
@@ -247,6 +311,11 @@ tri-state/status/freshness reads, assess, materialisation), the execution modes 
 live/replay/shadow over the §4.4 cache key), and the bridges — ash_rules (AST-93), DMN
 band tables (AST-92), BPMN judge callables (AST-94), evidence mapping (AST-95) — ship;
 no namespace is a stub any more: every module ships its feature logic.
+
+The Phase-4 temporal facts swap ships too: the temporal fragment
+(AST-147/148) with its equivalence battery, and the materialiser's evidence
+assertion (C1) — the legacy fragment is deprecated, removal at 1.0 (see
+["Replay your admissions"](#replay-your-admissions)).
 
 **Reversibility (thesis 6).** Tier 3 — first-party, accepted, not on hex; confined to its
 own namespace and the host resources that include its fragments. The seam is upstream:
