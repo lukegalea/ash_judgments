@@ -13,6 +13,7 @@ version = 1
 path = [
   ".gitignore",
   "AGENTS.md",
+  "CHANGELOG.md",
   "REUSE.toml",
   "README.md",
   "mix.lock",

@@ -3,10 +3,21 @@
 # SPDX-License-Identifier: MIT
 
 defmodule AshJudgments.Facts.Fragment do
+  @moduledoc deprecated:
+               "Use AshJudgments.Facts.TemporalFragment instead — removal at 1.0, after one soak cycle on the temporal fragment."
+
   @moduledoc """
   The materialised-facts fragment: the fields, calculations, actions and
   pure derived changes a host includes in its own facts resource (RFC
   §7.4; the ledger fragment's sibling — see `AshJudgments.Facts`).
+
+  > #### Deprecated since 0.3.0 {: .warning}
+  >
+  > New hosts include `AshJudgments.Facts.TemporalFragment` instead; this
+  > fragment is frozen — no behavior change is planned on this path. It is
+  > removed at 1.0, after one soak cycle on the temporal fragment; the
+  > parallel-fragments posture stands until then. The migration story
+  > (replay your admissions) is in the README.
 
   The set-evaluator contract lives on three plain attributes — `subject`
   (the composite subject term, as JSON), `predicate` (the string
