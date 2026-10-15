@@ -8,7 +8,8 @@ SPDX-License-Identifier: MIT
 
 Law 4: every question — and every output shape — is a declaration.
 Questions are declared in a `judgments` block on an Ash resource, typed by
-upstream answer types, given options drawn from constraints, versioned and
+an answer type (upstream's `Noul`, `Choice` or `Score`, or this package's
+`Extraction` or `Evidence`), given options drawn from constraints, versioned and
 content-hashed; the hash is the question's identity in the ledger. Because
 the question is a declaration, the manifest, the docs, the agent tooling
 and the audit pack all see the model surface like any other contract.

@@ -115,8 +115,9 @@ AshJudgments.Exploration.Run.run(MyApp.Note, %{
   revertible.
 - **Never banded, never admitted, never fact-fed** — the banding input
   builder (`Bridge.Dmn.inputs/2`) and the fact materialiser
-  (`Facts.Materialiser.materialise/2`) both refuse the namespace
-  (`ExploratoryRefused`), at any admission grade. Exploratory answers
+  (`Facts.Materialiser.materialise/2`) both refuse the namespace, at any
+  admission grade: the materialiser returns `ExploratoryRefused`, the
+  banding input builder raises `ArgumentError`. Exploratory answers
   reach calibration only through person labelling (§7.3
   `basis: "labelling"`) — the promotion evaluation set's on-ramp.
 - **Payload discipline** — the person-written instructions ride the WIRE
