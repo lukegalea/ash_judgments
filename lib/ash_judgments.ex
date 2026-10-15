@@ -33,9 +33,11 @@ defmodule AshJudgments do
     (AST-92..AST-95).
 
   Transport is upstream `AshAi.Actions.Evaluate` over ReqLLM. This package
-  ships **no HTTP client, no provider behaviour, no answer types** — upstream
-  owns all three (`AshAi.Evaluate.Answer` and its `Noul`, `Choice`, `Score`,
-  `Judgments` implementations).
+  ships **no HTTP client and no provider behaviour** — upstream owns the wire.
+  Upstream also owns the base answer types (`AshAi.Evaluate.Answer` and its
+  `Noul`, `Choice`, `Score` and `Judgments` implementations); this package adds
+  two on the same `evaluate` path, `AshJudgments.Evaluate.Extraction` and
+  `AshJudgments.Evaluate.Evidence`.
 
   ## What it never does
 

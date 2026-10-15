@@ -5,7 +5,7 @@ over any Ash resource; answers recorded as observations with full provenance; re
 judgments turned into DMN inputs, rule facts, process signals and evidence artifacts by
 the bridges. Transport is upstream `ash_ai`'s evaluate action over ReqLLM — this package
 ships no HTTP client or provider behaviour. Besides upstream's `AshAi.Evaluate.Noul`,
-`Choice` and `Score`, it ships two answer types of its own on the same path:
+`Choice`, `Score` and the multi-field `Judgments` container, it ships two answer types of its own on the same path:
 `AshJudgments.Evaluate.Extraction` and `AshJudgments.Evaluate.Evidence`. Read these rules
 before using it; they are the package's contract.
 

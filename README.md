@@ -39,7 +39,7 @@ action, its answer types (`AshAi.Evaluate.Answer` and friends), over
 [`req_llm`](https://hex.pm/packages/req_llm)'s provider model. **This package builds no
 HTTP client and no provider behaviour** — upstream deliberately owns the wire, and a
 bespoke client is a seam we do not want to maintain. Upstream also owns the base answer
-types (`Noul`, `Choice`, `Score`); this package adds two answer types on the same
+types (`Noul`, `Choice`, `Score`, and the multi-field `Judgments` container); this package adds two answer types on the same
 `evaluate` path, `AshJudgments.Evaluate.Extraction` and `AshJudgments.Evaluate.Evidence`.
 
 What upstream left out is what this package adds, one namespace per ticket:
