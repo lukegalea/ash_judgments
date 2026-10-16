@@ -37,8 +37,10 @@ the band table — is the durable asset.
 Transport is upstream [`ash_ai`](https://hex.pm/packages/ash_ai) 1.1: its `evaluate`
 action, its answer types (`AshAi.Evaluate.Answer` and friends), over
 [`req_llm`](https://hex.pm/packages/req_llm)'s provider model. **This package builds no
-HTTP client, no provider behaviour and no answer types** — upstream deliberately owns all
-three, and a bespoke client is a seam we do not want to maintain.
+HTTP client and no provider behaviour** — upstream deliberately owns the wire, and a
+bespoke client is a seam we do not want to maintain. Upstream also owns the base answer
+types (`Noul`, `Choice`, `Score`, and the multi-field `Judgments` container); this package adds two answer types on the same
+`evaluate` path, `AshJudgments.Evaluate.Extraction` and `AshJudgments.Evaluate.Evidence`.
 
 What upstream left out is what this package adds, one namespace per ticket:
 
@@ -54,18 +56,20 @@ What upstream left out is what this package adds, one namespace per ticket:
 
 ## What it looks like
 
-The scaffold ships the module layout and the availability contract; the DSL below is the
-design target of the follow-up tickets, not shipped code yet.
+The question registry DSL ships (`AshJudgments.Registry`; `docs/question-registry.md` is
+the full topic). Questions are declarations on the subject resource:
 
 ```elixir
-# AST-87: questions are declarations on the subject resource
 judgments do
   question :coverage_current do
-    type Evidence
+    type AshJudgments.Evaluate.Evidence
+    instructions "Does the certificate show coverage current on the review date?"
     family :coi
     version 3
-    options_from Credential, :status
+    profile :laya_local
     pii :minimised
+    state_projection MyApp.Projections.CertificateText
+    state_shape %{"text" => "string"}
     record :must
   end
 end
@@ -156,12 +160,6 @@ What works today:
   markers), the frozen `admit | review | omit` band contract
   (empty matched_rule_ids is a refusal), and the §7.1/§8.2 records the
   host instantiates — recorded, never recomputed.
-- **The DMN bridge and bandings** (`AshJudgments.Bridge.Dmn`,
-  `AshJudgments.Banding.Fragment`, `AshJudgments.Banding.CertificationFragment`)
-  — flatten recorded answers into FEEL inputs (decimal strings, present
-  markers), the frozen `admit | review | omit` band contract
-  (empty matched_rule_ids is a refusal), and the §7.1/§8.2 records the
-  host instantiates — recorded, never recomputed.
 - **The ash_rules bridge** (`AshJudgments.Bridge.Rules`) — fact-schema
   entries with escalate-means-omission (`missing: :unknown`), the
   FactBuilder over the materialised facts table, and the fact-snapshot
@@ -184,6 +182,12 @@ What works today:
   banding as an `EvidenceArtifact` create input (`:examine`, digest-forward collector,
   zone-located custody, no document text ever); the host writes it through its own
   domain; `docs/bridge-evidence.md`.
+- `Exploration` — the explore tier: labelled ordering by observation
+  (`Exploration.Ordering`), bounded exploratory questions (`Exploration.Run`),
+  recurrence detection and question proposals (`Exploration.Recurrence`,
+  `Exploration.ProposalFragment`). It never decides membership: the DMN bridge and the
+  materialiser refuse exploratory observations (`ArgumentError` and `ExploratoryRefused`);
+  `docs/exploration.md`.
 
 ## What it never does
 
@@ -196,8 +200,9 @@ What works today:
 - **It never stores policy.** The package records observations and proposes band tables;
   it does not decide what is allowed. Admission is an authorized action on a host
   resource; auto-admission is a named system actor holding an explicit, revocable grant.
-- It ships no HTTP client, provider behaviour or answer types — upstream `ash_ai` and
-  `req_llm` own the wire.
+- It ships no HTTP client or provider behaviour — upstream `ash_ai` and `req_llm` own the
+  wire. Its own answer types (`Evaluate.Extraction`, `Evaluate.Evidence`) ride upstream's
+  `evaluate` action.
 
 ## Replay your admissions
 

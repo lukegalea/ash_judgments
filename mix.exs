@@ -11,7 +11,7 @@ defmodule AshJudgments.MixProject do
   questions over any subject resource, a provenance-carrying judgment ledger,
   and the bridges that turn recorded judgments into DMN inputs, rule facts and
   process signals. Transport is upstream `ash_ai` evaluate over ReqLLM — this
-  package ships no HTTP client, provider or answer types.
+  package ships no HTTP client or provider.
   """
 
   def project do
@@ -58,8 +58,9 @@ defmodule AshJudgments.MixProject do
   defp deps do
     [
       # Core: the declaration substrate and the upstream call this package
-      # builds on. Transport (HTTP client, provider, answer types) is owned
-      # by ash_ai + req_llm — this package deliberately ships none.
+      # builds on. Transport (HTTP client, provider) and the base answer
+      # types are owned by ash_ai + req_llm — this package ships no client or
+      # provider, only its own Extraction and Evidence answer types.
       {:ash, "~> 3.34"},
       {:ash_ai, "~> 1.1"},
       {:req_llm, "~> 1.24"},
