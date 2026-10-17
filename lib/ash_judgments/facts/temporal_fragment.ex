@@ -280,6 +280,13 @@ defmodule AshJudgments.Facts.Changes.DeriveScopeHash do
     end)
   end
 
+  # Temporal safety (declared, issue #7): `scope_hash` is a digest of the
+  # changeset's own `scope` attribute and nothing else. No clock read, no
+  # side effect, no read outside the changeset, so the write's `as_of` is
+  # irrelevant to the result.
+  @impl true
+  def temporal_safe?(_opts), do: true
+
   # Canonical JSON: objects with sorted keys, recursively; lists in order;
   # atoms stringified at the boundary (JSON round-trip makes them strings
   # on replay too — the digest is over the JSON shape, so a replayed

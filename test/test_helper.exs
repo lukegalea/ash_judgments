@@ -15,6 +15,7 @@
   AshJudgments.Test.QuestionProposal,
   AshJudgments.Test.EventLog,
   AshJudgments.Test.Fact,
+  AshJudgments.Test.PlainFact,
   AshJudgments.Test.Banding,
   AshJudgments.Test.Certification,
   AshJudgments.Test.CalibrationRun,

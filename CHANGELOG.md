@@ -10,6 +10,26 @@ See [Conventional Commits](https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## Unreleased
+
+### Bug Fixes:
+
+- **Compiles without `telemetry_metrics` (#6).**
+  `AshJudgments.Telemetry.Metrics.definitions!/0` imported
+  `Telemetry.Metrics`, which resolves at compile time, so a host without
+  that optional dependency could not compile the package. The builders are
+  now remote calls; `definitions/0` still returns
+  `{:error, :telemetry_metrics_unavailable}` without the dependency. A new
+  CI job (`scripts/no-optional-deps.sh`) compiles the package in a host
+  that has none of its optional dependencies.
+- **The facts changes declare `temporal_safe?/1` (#7).**
+  `AshJudgments.Facts.Changes.DeriveSubject` and `DeriveScopeHash` derive
+  their columns from the changeset's own inputs only, and now say so. Ash
+  refused `:materialise` on a temporal facts host without
+  `AshEvents.Events` (whose change wrapper declared safety on their
+  behalf). Hosts can drop these two modules from
+  `config :ash, :temporal_safe_modules`.
+
 ## [0.3.0]
 
 ### Features:
