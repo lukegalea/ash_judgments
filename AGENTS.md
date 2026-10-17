@@ -36,6 +36,9 @@ Facts: stdout is pure JSON (parse it; don't eyeball); first invocation pays mix-
 - Optional integrations (`ash_decisions`, `ash_rules`, `ash_bpmn`, `ash_compliance`,
   `ash_events`, `opentelemetry_ash`) must stay optional: gate behind
   `Code.ensure_loaded?/1`, degrade to `{:error, {:missing_dependency, dep}}`, never crash.
+  Never `import` or `require` an optional dependency's module outside such a gate: both
+  resolve at compile time and break hosts without it. `scripts/no-optional-deps.sh`
+  (a CI job) compiles the package in a host that has none of them.
 - Profiles are model-agnostic by design: the homelab models are prototype instruments,
   re-chosen at launch. No model id, endpoint or key literal ever enters source or config —
   profiles are host config data resolving `{:system, var}` at call time.

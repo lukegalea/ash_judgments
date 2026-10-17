@@ -23,6 +23,15 @@ defmodule AshJudgments.Telemetry.Metrics do
   # `telemetry_metrics` is an OPTIONAL dependency (the package's own
   # contract is the events; the metrics definitions are the plug-in
   # form). Absent, `definitions/0` degrades — never raises.
+  #
+  # The builder calls below are fully qualified remote calls, never an
+  # `import`: an import resolves at compile time and fails to compile on a
+  # host without the dependency (issue #6). A remote call to a missing
+  # module compiles; only its undefined-module warning is silenced here.
+  @compile {:no_warn_undefined, Telemetry.Metrics}
+
+  alias Telemetry.Metrics
+
   @doc """
   The metric definitions, as data. `{:error, :telemetry_metrics_unavailable}`
   when the optional `telemetry_metrics` dependency is absent.
@@ -41,42 +50,44 @@ defmodule AshJudgments.Telemetry.Metrics do
     end
   end
 
-  @doc "The metric definitions when `telemetry_metrics` is available."
+  @doc """
+  The metric definitions when `telemetry_metrics` is available. Without
+  it this raises `UndefinedFunctionError`; call `definitions/0` when the
+  dependency may be absent.
+  """
   @spec definitions!() :: list()
   def definitions! do
-    import Telemetry.Metrics
-
     [
       # The judge call itself: one counter per family × region × residency ×
       # mode (the outcome rides the exception/record-failure counters).
-      counter("ash_judgments.judgment.stop.count",
+      Metrics.counter("ash_judgments.judgment.stop.count",
         tags: [:family, :region, :residency, :mode, :cache_hit?]
       ),
-      counter("ash_judgments.judgment.exception.count",
+      Metrics.counter("ash_judgments.judgment.exception.count",
         tags: [:family, :region, :residency, :kind]
       ),
       # Latency distributions: the wire latency and the full-call duration.
-      distribution("ash_judgments.judgment.stop.latency_us",
+      Metrics.distribution("ash_judgments.judgment.stop.latency_us",
         tags: [:family, :region],
         unit: {:native, :microsecond}
       ),
-      distribution("ash_judgments.judgment.stop.duration",
+      Metrics.distribution("ash_judgments.judgment.stop.duration",
         tags: [:family, :region],
         unit: {:native, :microsecond}
       ),
       # Cache and shadow outcomes.
-      counter("ash_judgments.cache.hit.count", tags: [:region, :residency, :mode]),
-      counter("ash_judgments.cache.replay_miss.count", tags: [:region, :mode]),
-      counter("ash_judgments.shadow.diff.count", tags: [:region, :mode]),
+      Metrics.counter("ash_judgments.cache.hit.count", tags: [:region, :residency, :mode]),
+      Metrics.counter("ash_judgments.cache.replay_miss.count", tags: [:region, :mode]),
+      Metrics.counter("ash_judgments.shadow.diff.count", tags: [:region, :mode]),
       # The refusal/failure surfaces.
-      counter("ash_judgments.record.failed.count", tags: [:family, :region, :record]),
-      counter("ash_judgments.residency.denied.count",
+      Metrics.counter("ash_judgments.record.failed.count", tags: [:family, :region, :record]),
+      Metrics.counter("ash_judgments.residency.denied.count",
         tags: [:region, :residency, :profile]
       ),
-      counter("ash_judgments.pin.mismatch.count", tags: [:region]),
+      Metrics.counter("ash_judgments.pin.mismatch.count", tags: [:region]),
       # The ledger/facts surfaces.
-      counter("ash_judgments.ledger.tombstoned.count", tags: [:region]),
-      counter("ash_judgments.facts.materialised.count", tags: [:region, :grade, :verdict])
+      Metrics.counter("ash_judgments.ledger.tombstoned.count", tags: [:region]),
+      Metrics.counter("ash_judgments.facts.materialised.count", tags: [:region, :grade, :verdict])
     ]
   end
 end

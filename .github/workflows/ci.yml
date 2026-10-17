@@ -77,6 +77,33 @@ jobs:
       - run: mix deps.compile
       - run: mix compile --force --warnings-as-errors
 
+  no-optional-deps:
+    name: Compiles without the optional dependencies
+    runs-on: ubuntu-latest
+    env:
+      MIX_ENV: dev
+    steps:
+      - uses: actions/checkout@v4
+      - id: beam
+        uses: ./.github/actions/setup-beam
+        with:
+          mix-env: dev
+          deps-token: ${{ secrets.PRIVATE_DEPS_TOKEN }}
+      # The throwaway host lives outside the workspace; its deps and _build
+      # are cached on their own key. The script force-compiles this package
+      # every run, so a restored _build cannot hide a regression.
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ${{ runner.temp }}/no-optional-deps-host/deps
+            ${{ runner.temp }}/no-optional-deps-host/_build
+          key: ${{ runner.os }}-no-optional-deps-${{ steps.beam.outputs.elixir-version }}-${{ hashFiles('mix.lock') }}
+          restore-keys: ${{ runner.os }}-no-optional-deps-${{ steps.beam.outputs.elixir-version }}-
+      - name: Compile in a host with none of the optional dependencies
+        env:
+          NO_OPTIONAL_DEPS_HOST: ${{ runner.temp }}/no-optional-deps-host
+        run: scripts/no-optional-deps.sh
+
   format:
     name: mix format --check-formatted
     runs-on: ubuntu-latest

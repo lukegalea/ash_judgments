@@ -246,6 +246,13 @@ defmodule AshJudgments.Facts.Changes.DeriveSubject do
     end)
   end
 
+  # Temporal safety (declared, issue #7): the subject columns are read off
+  # the changeset's own `subject` attribute and nothing else. No clock
+  # read, no side effect, no read outside the changeset, so the write's
+  # `as_of` is irrelevant to the result.
+  @impl true
+  def temporal_safe?(_opts), do: true
+
   defp get_subject_key(subject, key) when is_map(subject) do
     Map.get(subject, key) || Map.get(subject, String.to_existing_atom(key))
   rescue
