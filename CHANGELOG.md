@@ -10,7 +10,7 @@ See [Conventional Commits](https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
-## Unreleased
+## [0.3.2] (2026-10-21)
 
 ### Bug Fixes:
 
