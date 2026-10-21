@@ -14,6 +14,18 @@ See [Conventional Commits](https://conventionalcommits.org) for commit guideline
 
 ### Bug Fixes:
 
+- **The materialiser finds the current fact by scope (#13).** It looked
+  the fact up by subject and predicate only and took the last row, on
+  both fragments. An admission for one scope then revised, truncated or
+  superseded another scope's fact (the revised row kept the other
+  scope), was refused as `:kept_person_fact` because another scope held
+  a person-grade fact, or returned `:unchanged` because another scope
+  held the same value. The lookup now keys on `(subject, predicate,
+  scope)`, comparing scopes by the same canonical hash the temporal
+  fragment stores as `scope_hash`. An admission for a scope with no
+  current fact creates one. Hosts change nothing; a temporal table whose
+  rows were mis-scoped by the old lookup is rebuilt by replaying its
+  admissions.
 - **`Query.status/4` picks the strongest candidate (#10).** With several
   in-scope facts, the lowest-ranked decision won: a stale or expired fact
   beat an admitted one, and a grant-grade fact beat a person-grade one. A

@@ -278,15 +278,20 @@ defmodule AshJudgments.Facts.Changes.DeriveScopeHash do
   @impl true
   def change(changeset, _opts, _context) do
     Ash.Changeset.before_action(changeset, fn changeset ->
-      scope = Ash.Changeset.get_attribute(changeset, :scope) || %{}
-
       Ash.Changeset.force_change_attribute(
         changeset,
         :scope_hash,
-        canonical_digest(scope)
+        digest(Ash.Changeset.get_attribute(changeset, :scope))
       )
     end)
   end
+
+  # The scope hash of a scope as given: what this change stores, and what
+  # the materialiser compares against when it looks up the current fact
+  # for a decision's scope (issue #13), so both sides share one encoding.
+  @doc false
+  @spec digest(map() | nil) :: String.t()
+  def digest(scope), do: canonical_digest(scope || %{})
 
   # Temporal safety (declared, issue #7): `scope_hash` is a digest of the
   # changeset's own `scope` attribute and nothing else. No clock read, no
