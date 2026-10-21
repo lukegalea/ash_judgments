@@ -226,8 +226,11 @@ defmodule AshJudgments.Facts.Materialiser do
   defp effective_at(decision) do
     # §7.2: the admission carries the instant its fact takes effect.
     # Backdated `effective_at` reconstructs history retroactively; the
-    # default is now.
-    decision[:effective_at] || DateTime.utc_now() |> DateTime.truncate(:second)
+    # default is now, at full precision (issue #11): truncating it to the
+    # second put two admissions within one second at the same instant, so
+    # the second replaced the first and left it no period, and put a write
+    # before a period that had opened earlier in that second.
+    decision[:effective_at] || DateTime.utc_now()
   end
 
   defp temporal_decide(resource, decision, current, grade, as_of) do

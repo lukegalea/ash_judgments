@@ -225,6 +225,36 @@ defmodule AshJudgments.FactsTemporalTest do
     assert length(open) == 1
   end
 
+  # --- issue #11: revisions close together in time ------------------------------
+
+  test "two admissions within one second keep a period each" do
+    # Both take the default effective_at (now).
+    {:ok, :materialised} = materialise(value: "urgent", holds: true)
+    {:ok, :materialised} = materialise(value: "routine", holds: false)
+
+    assert [first, second] = periods()
+    assert %{value: "urgent", holds: true} = first
+    assert %{value: "routine", holds: false, upper: :unbounded} = second
+    assert first.upper == second.lower
+    refute first.lower == first.upper
+  end
+
+  test "a default admission after a sub-second effective_at revises, never collides" do
+    opened = DateTime.utc_now()
+    {:ok, :materialised} = materialise(value: "urgent", holds: true, effective_at: opened)
+    {:ok, :materialised} = materialise(value: "routine", holds: false)
+
+    assert [%{value: "urgent"}, %{value: "routine", upper: :unbounded}] = periods()
+  end
+
+  test "a revision at its period's own start replaces that version in place" do
+    instant = ~U[2025-03-01 00:00:00.000000Z]
+    {:ok, :materialised} = materialise(value: "urgent", holds: true, effective_at: instant)
+    {:ok, :materialised} = materialise(value: "routine", holds: false, effective_at: instant)
+
+    assert [%{value: "routine", holds: false, upper: :unbounded}] = periods()
+  end
+
   # --- helpers -------------------------------------------------------------------
 
   defp materialise(overrides) do
