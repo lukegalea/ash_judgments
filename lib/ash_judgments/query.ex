@@ -58,10 +58,13 @@ defmodule AshJudgments.Query do
       candidates ->
         current_digest = current_digest(opts, subject)
 
+        # Precedence (issue #10): a person-grade decision first, then a
+        # grant-grade one, and an unknown reason only when no candidate
+        # decides. The sort is stable, so equal ranks keep read order.
         candidates
         |> Enum.map(&decide(&1, opts, current_digest))
-        |> Enum.sort_by(&grade_rank/1)
-        |> Enum.find(& &1) || {:unknown, :no_fact}
+        |> Enum.sort_by(&grade_rank/1, :desc)
+        |> hd()
     end
   end
 
