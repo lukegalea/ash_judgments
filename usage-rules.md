@@ -136,6 +136,11 @@ error, never a crash:
 - Uniqueness is `WITHOUT OVERLAPS` on `(subject_type, subject_id, predicate,
   scope_hash)`, which needs PostgreSQL 18 and the `btree_gist` extension in the host
   repo's `installed_extensions`.
+- Let the migration generator create the facts table: it emits the temporal primary
+  key, `PRIMARY KEY (id, valid_at WITHOUT OVERLAPS)`. A table created by hand can lack
+  it, and the generator cannot add it later on its own; repair it with the
+  `AshJudgments.Facts.TemporalPrimaryKey` custom statement, not a hand-written
+  migration.
 - `AshJudgments.Facts.Materialiser` is the sole writer of facts. Human verdicts win,
   an omission writes no fact, and exploratory observations are refused
   (`ExploratoryRefused`).

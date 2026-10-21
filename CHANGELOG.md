@@ -10,6 +10,34 @@ See [Conventional Commits](https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## Unreleased
+
+### Bug Fixes:
+
+- **`Query.status/4` picks the strongest candidate (#10).** With several
+  in-scope facts, the lowest-ranked decision won: a stale or expired fact
+  beat an admitted one, and a grant-grade fact beat a person-grade one. A
+  person-grade decision now decides first, then a grant-grade one, and an
+  unknown reason only when no candidate decides.
+- **The materialiser's default `effective_at` keeps microseconds (#11).**
+  It was truncated to the second. Two admissions within one second then
+  took the same instant, so the second replaced the first in place and
+  the first kept no period in history; and a default admission landing
+  before a period that opened earlier in the same second collided with it
+  on the `WITHOUT OVERLAPS` identity.
+
+### Features:
+
+- **`AshJudgments.Facts.TemporalPrimaryKey`: a generated repair for a
+  facts table without its primary key.** The fragment's key is
+  `PRIMARY KEY (id, valid_at WITHOUT OVERLAPS)`. A table created by a
+  hand-written migration can lack it while the snapshot records it, and
+  the migration generator cannot add it: it changes a primary key only
+  when the snapshot's key changes, and then drops `<table>_pkey` first.
+  Hosts in that state add the module's `repair_up/2` and `repair_down/2`
+  as an `ash_postgres` custom statement on their facts resource and run
+  `mix ash.codegen`. Hosts whose facts table was generated need nothing.
+
 ## [0.3.1] (2026-10-18)
 
 ### Bug Fixes:
