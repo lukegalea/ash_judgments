@@ -35,6 +35,14 @@ defmodule AshJudgments.Facts.TemporalFragment do
     digest, pure, replay-identical — the `DeriveSubject` discipline) joins
     the identity.
 
+  ## The primary key
+
+  `id` is the primary key, and on a temporal resource the migration
+  generator makes that `PRIMARY KEY (id, valid_at WITHOUT OVERLAPS)` when
+  it creates the table. A table created any other way may lack it; the
+  generator cannot add it afterwards on its own. See
+  `AshJudgments.Facts.TemporalPrimaryKey` for the generated repair.
+
   ## What survives verbatim
 
   The set-evaluator contract (`subject`/`predicate`/`value`), `holds`,

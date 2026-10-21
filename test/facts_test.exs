@@ -306,6 +306,79 @@ defmodule AshJudgments.FactsTest do
       |> Map.get(:stale?)
     end
 
+    # Issue #10: with several in-scope candidates (narrower-scope facts
+    # serving a broader read), a live decision beats an unknown one and a
+    # person-grade decision beats a grant-grade one. The candidates are
+    # written with the fragment's `:materialise` action directly: one per
+    # scope, which is what the status read has to choose between.
+    test "several candidates: an admitted fact decides over a stale or expired one" do
+      fresh = "sha256:" <> String.duplicate("2", 64)
+
+      scoped_fact!("stale", subject_state_digest: "sha256:" <> String.duplicate("1", 64))
+
+      scoped_fact!("expired",
+        subject_state_digest: fresh,
+        valid_until: DateTime.add(DateTime.utc_now(), -3600)
+      )
+
+      scoped_fact!("live", subject_state_digest: fresh, value: "routine", holds: false)
+
+      assert {:out, fact} =
+               AshJudgments.Query.status(AshJudgments.Test.Fact, @subject, @predicate,
+                 scope: %{"tenant" => "t-1"},
+                 current_digests: %{@subject => fresh}
+               )
+
+      assert fact.scope == %{"tenant" => "t-1", "set" => "live"}
+    end
+
+    test "several candidates: a person-grade fact decides over a grant-grade one" do
+      scoped_fact!("a", admission_grade: :grant)
+      scoped_fact!("b", admission_grade: :person, value: "routine", holds: false)
+      scoped_fact!("c", admission_grade: :grant)
+
+      assert {:out, fact} =
+               AshJudgments.Query.status(AshJudgments.Test.Fact, @subject, @predicate,
+                 scope: %{"tenant" => "t-1"}
+               )
+
+      assert fact.admission_grade == :person
+    end
+
+    test "several candidates and none decides: unknown, with a candidate's reason" do
+      expired = DateTime.add(DateTime.utc_now(), -3600)
+      scoped_fact!("a", valid_until: expired)
+      scoped_fact!("b", valid_until: expired)
+
+      assert {:unknown, :expired} =
+               AshJudgments.Query.status(AshJudgments.Test.Fact, @subject, @predicate,
+                 scope: %{"tenant" => "t-1"}
+               )
+    end
+
+    defp scoped_fact!(set, overrides) do
+      AshJudgments.Test.Fact
+      |> Ash.Changeset.for_create(
+        :materialise,
+        Map.new(
+          Keyword.merge(
+            [
+              subject: @subject,
+              predicate: @predicate,
+              value: "urgent",
+              holds: true,
+              scope: %{"tenant" => "t-1", "set" => set},
+              subject_state_digest: decision_state_digest(),
+              admission_grade: :grant
+            ],
+            overrides
+          )
+        ),
+        authorize?: false
+      )
+      |> Ash.create!()
+    end
+
     defp decision_state_digest, do: decision()[:subject_state_digest]
   end
 
