@@ -9,7 +9,14 @@ defmodule AshJudgments.Facts.Materialiser do
 
   The rules, in evaluation order — each decision is recorded, never
   re-derived (law 2: the caller passes the admission's result; nothing
-  here bands, judges or consults a model):
+  here bands, judges or consults a model). "The current fact" is always
+  the one for the decision's `(subject, predicate, scope)`, the identity
+  the temporal table enforces: an admission for one scope never revises,
+  truncates or supersedes another scope's fact, and a fact in one scope
+  never blocks an admission in another (issue #13). Scopes compare by
+  their canonical-JSON hash, the temporal fragment's `scope_hash`, so a
+  scope spelled with atom keys is the same scope as its string-keyed
+  JSON form.
 
   1. **Human entries win** (§7.2 normative 2): an automation-grade
      admission never overwrites or lowers a person-admitted current fact.
@@ -65,6 +72,10 @@ defmodule AshJudgments.Facts.Materialiser do
   """
 
   @moduledoc since: "0.1.0"
+
+  require Ash.Query
+
+  alias AshJudgments.Facts.Changes.DeriveScopeHash
 
   @doc """
   Materialises one admission decision onto the configured facts resource.
@@ -324,12 +335,19 @@ defmodule AshJudgments.Facts.Materialiser do
     {:ok, :superseded}
   end
 
+  # The version valid at `as_of` for the decision's (subject, predicate,
+  # scope): the key the WITHOUT OVERLAPS identity enforces. Comparing the
+  # stored `scope_hash` keeps a decision for one scope from revising,
+  # truncating or being blocked by another scope's fact (issue #13).
   defp temporal_current(resource, decision, as_of) do
+    scope_hash = scope_hash(decision)
+
     resource
     |> Ash.Query.for_read(:for_subject, %{
       subject: decision[:subject],
       predicate: decision[:predicate]
     })
+    |> Ash.Query.filter(scope_hash == ^scope_hash)
     |> Ash.Query.as_of(as_of)
     |> Ash.read!()
     |> case do
@@ -429,6 +447,9 @@ defmodule AshJudgments.Facts.Materialiser do
 
   defp grade_of(current), do: current.admission_grade
 
+  defp scope_hash(decision),
+    do: DeriveScopeHash.digest(decision[:scope])
+
   defp materialise_inputs(decision, grade) do
     decision
     |> Map.take([
@@ -457,13 +478,19 @@ defmodule AshJudgments.Facts.Materialiser do
     |> Map.put(:admission_grade, grade)
   end
 
+  # The current fact for the decision's (subject, predicate, scope). The
+  # legacy table stores no scope hash, so each candidate's scope is hashed
+  # the way the temporal fragment derives `scope_hash` (issue #13).
   defp current_fact(resource, decision) do
+    scope_hash = scope_hash(decision)
+
     resource
     |> Ash.Query.for_read(:for_subject, %{
       subject: decision[:subject],
       predicate: decision[:predicate]
     })
     |> Ash.read!()
+    |> Enum.filter(&(DeriveScopeHash.digest(&1.scope) == scope_hash))
     |> case do
       [fact] -> fact
       [] -> nil

@@ -308,9 +308,10 @@ defmodule AshJudgments.FactsTest do
 
     # Issue #10: with several in-scope candidates (narrower-scope facts
     # serving a broader read), a live decision beats an unknown one and a
-    # person-grade decision beats a grant-grade one. The candidates are
-    # written with the fragment's `:materialise` action directly: one per
-    # scope, which is what the status read has to choose between.
+    # person-grade decision beats a grant-grade one. Each candidate is an
+    # admission through the materialiser, one per scope, which is what the
+    # status read has to choose between (they share a subject and
+    # predicate, so this also relies on the scope-keyed lookup, #13).
     test "several candidates: an admitted fact decides over a stale or expired one" do
       fresh = "sha256:" <> String.duplicate("2", 64)
 
@@ -333,9 +334,9 @@ defmodule AshJudgments.FactsTest do
     end
 
     test "several candidates: a person-grade fact decides over a grant-grade one" do
-      scoped_fact!("a", admission_grade: :grant)
-      scoped_fact!("b", admission_grade: :person, value: "routine", holds: false)
-      scoped_fact!("c", admission_grade: :grant)
+      scoped_fact!("a", grade: :grant)
+      scoped_fact!("b", grade: :person, value: "routine", holds: false)
+      scoped_fact!("c", grade: :grant)
 
       assert {:out, fact} =
                AshJudgments.Query.status(AshJudgments.Test.Fact, @subject, @predicate,
@@ -357,26 +358,8 @@ defmodule AshJudgments.FactsTest do
     end
 
     defp scoped_fact!(set, overrides) do
-      AshJudgments.Test.Fact
-      |> Ash.Changeset.for_create(
-        :materialise,
-        Map.new(
-          Keyword.merge(
-            [
-              subject: @subject,
-              predicate: @predicate,
-              value: "urgent",
-              holds: true,
-              scope: %{"tenant" => "t-1", "set" => set},
-              subject_state_digest: decision_state_digest(),
-              admission_grade: :grant
-            ],
-            overrides
-          )
-        ),
-        authorize?: false
-      )
-      |> Ash.create!()
+      assert materialise!(Keyword.put(overrides, :scope, %{"tenant" => "t-1", "set" => set})) ==
+               :materialised
     end
 
     defp decision_state_digest, do: decision()[:subject_state_digest]
