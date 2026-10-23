@@ -34,7 +34,7 @@ the band table — is the durable asset.
 
 ## How it fits
 
-Transport is upstream [`ash_ai`](https://hex.pm/packages/ash_ai) 1.1: its `evaluate`
+Transport is upstream [`ash_ai`](https://hex.pm/packages/ash_ai) (1.1 or later): its `evaluate`
 action, its answer types (`AshAi.Evaluate.Answer` and friends), over
 [`req_llm`](https://hex.pm/packages/req_llm)'s provider model. **This package builds no
 HTTP client and no provider behaviour** — upstream deliberately owns the wire, and a
