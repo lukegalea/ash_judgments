@@ -356,6 +356,38 @@ defmodule AshJudgments.ProfileTest do
     end
   end
 
+  describe "environment references" do
+    setup :configure_stack
+
+    defp keyed_profile(api_key) do
+      new!(
+        name: :keyed,
+        model: "laya:typed-decisions",
+        base_url: {:system, "OLLAYA_BASE_URL"},
+        api_key: api_key,
+        residency: :in_cluster,
+        region: :ca
+      )
+    end
+
+    test "an empty variable takes the reference's default" do
+      put_test_env(%{"OLLAYA_BASE_URL" => "http://127.0.0.1:11435", "EMPTY_KEY" => ""})
+
+      assert {:ok, opts} =
+               AshJudgments.Profile.req_llm_opts(keyed_profile({:system, "EMPTY_KEY", "local"}))
+
+      assert opts[:api_key] == "local"
+    end
+
+    test "an empty variable with no default fails loud, naming the variable" do
+      put_test_env(%{"OLLAYA_BASE_URL" => "http://127.0.0.1:11435", "EMPTY_KEY" => ""})
+
+      assert_raise AshJudgments.Profile.MissingEnv, ~r/EMPTY_KEY.*empty/, fn ->
+        AshJudgments.Profile.req_llm_opts(keyed_profile({:system, "EMPTY_KEY"}))
+      end
+    end
+  end
+
   describe "the registry and question resolution" do
     setup :configure_stack
 

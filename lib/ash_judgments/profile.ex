@@ -590,15 +590,21 @@ defmodule AshJudgments.Profile do
     end
   end
 
+  # An empty variable counts as unset: a reference never resolves to a
+  # silent empty string (ReqLLM refuses an empty API key deep inside the
+  # request instead).
   defp resolve_ref!({:system, var}, profile) do
     case System.get_env(var) do
-      nil -> raise MissingEnv, var: var, profile_name: profile.name
+      unset when unset in [nil, ""] -> raise MissingEnv, var: var, profile_name: profile.name
       value -> value
     end
   end
 
   defp resolve_ref!({:system, var, default}, _profile) do
-    System.get_env(var) || default
+    case System.get_env(var) do
+      unset when unset in [nil, ""] -> default
+      value -> value
+    end
   end
 
   defp resolve_ref!(literal, _profile) when is_binary(literal), do: literal
