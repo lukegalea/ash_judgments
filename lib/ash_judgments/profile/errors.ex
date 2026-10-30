@@ -178,8 +178,8 @@ end
 defmodule AshJudgments.Profile.MissingEnv do
   @moduledoc """
   A `{:system, var}` reference on the profile (or on a configured route)
-  resolved to an unset environment variable. Never a silent empty string:
-  the resolution fails naming the variable and the profile.
+  resolved to an unset or empty environment variable. Never a silent empty
+  string: the resolution fails naming the variable and the profile.
   """
 
   defexception [:var, :profile_name, :message]
@@ -199,7 +199,7 @@ defmodule AshJudgments.Profile.MissingEnv do
       var: var,
       profile_name: name,
       message:
-        "environment variable #{inspect(var)} (needed by profile #{inspect(name)}) is not set"
+        "environment variable #{inspect(var)} (needed by profile #{inspect(name)}) is not set or is empty"
     }
   end
 end
