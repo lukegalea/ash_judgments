@@ -101,7 +101,8 @@ freshness in host config without touching the locked question
 declarations. The judge's cache lookups read the override first.
 `low_band` (nil) says what a table's lower range does when the run
 earned a lower threshold: `:admit_no` admits the confident no with
-`fact_value` `false`, `:omit` drops it, nil renders no lower range.
+`fact_value` `false` and a yes with `true` (a yes/no family's option),
+`:omit` drops it, nil renders no lower range.
 
 ## Consumers
 

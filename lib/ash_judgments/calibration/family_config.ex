@@ -31,8 +31,9 @@ defmodule AshJudgments.Calibration.FamilyConfig do
     ttl governs.
   - `low_band` — what the lower range of an earned band table does when
     the run also earned a lower threshold (`RiskControl.threshold_low/2`):
-    `:admit_no` admits the confident no (the fact's value is `false`),
-    `:omit` drops it (no fact is written). `nil` (default) renders no
+    `:admit_no` admits the confident no (the fact's value is `false`,
+    and the table admits a yes as `true`: it is a yes/no family's
+    option), `:omit` drops it (no fact is written). `nil` (default) renders no
     lower range: everything below the upper threshold goes to review, as
     a two-range table. Any other value raises when the config is read.
 

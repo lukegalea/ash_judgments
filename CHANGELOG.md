@@ -24,9 +24,10 @@ See [Conventional Commits](https://conventionalcommits.org) for commit guideline
   proposal carries it. The family's new `low_band` option
   (`Calibration.FamilyConfig`: `:admit_no`, `:omit`, or nil, the default)
   says what the lower range does; pass it to `ProposalDmn.render/2` as
-  `:low_band`. `:admit_no` renders a rule that admits with `fact_value`
-  `false` (a boolean output, null on the other rules), `:omit` one that
-  omits; both have the reason code `conformal_low_threshold_met`. A lower
+  `:low_band`. `:admit_no`, a yes/no family's option, renders a rule that
+  admits with `fact_value` `false` and gives the upper admit rule
+  `fact_value` `true` (a boolean output, null on review), so a yes and a
+  no are stored as the same type; `:omit` renders one that omits; both have the reason code `conformal_low_threshold_met`. A lower
   threshold at or above the upper one is refused by
   `propose_band_table/3`, `verify/3` and the renderer
   (`:thresholds_overlap`). Without a lower range the two-rule document is
@@ -71,7 +72,9 @@ See [Conventional Commits](https://conventionalcommits.org) for commit guideline
   and pass `low_band: FamilyConfig.low_band(family)` wherever a proposal
   is rendered. The banding step must record the table's `fact_value`
   output whenever it is not null, `false` included: that is the
-  confident no.
+  confident no. A yes/no answer carries only a probability, so where a
+  table has no `fact_value` output (the two-rule and `:omit` tables) the
+  value of an admitted yes is still the host's to derive.
 - No migrations: every new field is a calculation.
 
 ## [0.3.2] (2026-10-21)

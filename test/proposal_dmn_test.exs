@@ -209,7 +209,7 @@ defmodule AshJudgments.Calibration.ProposalDmnTest do
                            <inputEntry id="rule_admit_0"><text>&gt;= 0.93</text></inputEntry>
                            <outputEntry id="rule_admit_1"><text>"admit"</text></outputEntry>
                            <outputEntry id="rule_admit_2"><text>"conformal_threshold_met"</text></outputEntry>
-                           <outputEntry id="rule_admit_3"><text>null</text></outputEntry>
+                           <outputEntry id="rule_admit_3"><text>true</text></outputEntry>
                          </rule>
                          <rule id="rule_admit_no">
                            <inputEntry id="rule_admit_no_0"><text>&lt;= 0.12</text></inputEntry>
@@ -295,7 +295,7 @@ defmodule AshJudgments.Calibration.ProposalDmnTest do
       &Boxic.DMN.evaluate_with_trace(model, "bands_clinic_triage", %{"q1__p_true" => &1})
     end
 
-    test ":admit_no admits yes at and above the threshold, no fact value of its own" do
+    test ":admit_no admits yes at and above the threshold as true" do
       band = three_band(:admit_no)
 
       for score <- ["0.93", "1"] do
@@ -303,9 +303,21 @@ defmodule AshJudgments.Calibration.ProposalDmnTest do
                 %{
                   "band" => "admit",
                   "reason_code" => "conformal_threshold_met",
-                  "fact_value" => nil
+                  "fact_value" => true
                 }, %{matched_rules: ["rule_admit"]}} = band.(score)
       end
+    end
+
+    # A yes/no answer carries only a probability, so the host has no answer
+    # value to derive a yes from: the table names both admitted facts, and
+    # they are the same type.
+    test ":admit_no admits a yes and a no as the same JSON type" do
+      band = three_band(:admit_no)
+
+      assert {:ok, %{"fact_value" => yes}, _} = band.("0.95")
+      assert {:ok, %{"fact_value" => no}, _} = band.("0.05")
+      assert {yes, no} == {true, false}
+      assert {Jason.encode!(yes), Jason.encode!(no)} == {"true", "false"}
     end
 
     test ":admit_no admits a confident no at and below the lower threshold as false" do

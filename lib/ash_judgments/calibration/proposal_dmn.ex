@@ -40,14 +40,17 @@ defmodule AshJudgments.Calibration.ProposalDmn do
   Without either one the table is the two-rule table, byte for byte.
 
   **`fact_value` is emitted only for `:admit_no`**, as a third output
-  typed `boolean`: `false` on the low rule and `null` on the others. The
-  host's banding step records the table's `fact_value` output as the
-  banding's `fact_value` when the output is not null, and otherwise
-  derives it from the gated answer (for a yes/no answer admitted on
-  `p_true`, that is `true`). So the admit rule leaves it null and the
-  yes keeps the value it has today, and a confident no is admitted as
-  `false`, the same JSON boolean a yes/no fact holds. `review` and `omit`
-  carry no fact value (the band contract keeps `fact_value` admit-only).
+  typed `boolean`: `true` on the admit rule, `false` on the low rule and
+  `null` on review. `:admit_no` is a yes/no family's option, scored on
+  `p_true`, and both of its admit rules say which fact they admit, so a
+  yes and a confident no are stored as the same JSON boolean. The table
+  does not leave the yes to the host: a yes/no answer carries only a
+  probability, so there is no answer value to derive one from. The
+  host's banding step records the table's `fact_value` output whenever
+  it is not null, `false` included. `review` and `omit` carry no fact
+  value (the band contract keeps `fact_value` admit-only). The two-rule
+  and `:omit` tables have no `fact_value` output; the host derives an
+  admitted value as it did before.
 
   **There is no default rule** (ADR 0041): an input that is not a number
   — an absent or malformed score — matches no row (`number/1` fails, so
@@ -362,7 +365,7 @@ defmodule AshJudgments.Calibration.ProposalDmn do
       [
         @band_outputs,
         @fact_value_output,
-        rule("rule_admit", ">= #{threshold}", ["admit", "conformal_threshold_met", :null]),
+        rule("rule_admit", ">= #{threshold}", ["admit", "conformal_threshold_met", true]),
         rule("rule_admit_no", "<= #{low}", ["admit", "conformal_low_threshold_met", false]),
         rule("rule_review", "(#{low}..#{threshold})", [
           "review",
@@ -403,6 +406,7 @@ defmodule AshJudgments.Calibration.ProposalDmn do
   end
 
   defp feel(:null), do: "null"
+  defp feel(true), do: "true"
   defp feel(false), do: "false"
   # Output literals are the fixed band vocabulary: nothing to escape.
   defp feel(value) when is_binary(value), do: ~s("#{value}")
