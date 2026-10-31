@@ -5,7 +5,7 @@
 defmodule AshJudgments.MixProject do
   use Mix.Project
 
-  @version "0.3.2"
+  @version "0.3.3"
   @description """
   The System One judgment substrate for Ash: declared, typed, calibrated
   questions over any subject resource, a provenance-carrying judgment ledger,

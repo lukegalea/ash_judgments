@@ -10,6 +10,70 @@ See [Conventional Commits](https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [0.3.3] (2026-10-31)
+
+### Features:
+
+- **Three-range band tables (S1-86).** An earned table can admit yes at
+  or above its threshold, act on a confident no at or below a lower
+  threshold, and send the scores between to review.
+  `Calibration.RiskControl.threshold_low/2` is the quantile rule with the
+  loss reversed (an error is a score at or below λ whose gold is yes),
+  over the same n and α. The calibrate task records it as
+  `"threshold_low"` in `conformal_thresholds` when earned, and the
+  proposal carries it. The family's new `low_band` option
+  (`Calibration.FamilyConfig`: `:admit_no`, `:omit`, or nil, the default)
+  says what the lower range does; pass it to `ProposalDmn.render/2` as
+  `:low_band`. `:admit_no` renders a rule that admits with `fact_value`
+  `false` (a boolean output, null on the other rules), `:omit` one that
+  omits; both have the reason code `conformal_low_threshold_met`. A lower
+  threshold at or above the upper one is refused by
+  `propose_band_table/3`, `verify/3` and the renderer
+  (`:thresholds_overlap`). Without a lower range the two-rule document is
+  unchanged. The calibration fragment gains `:threshold_low`, shown on the
+  band-tables surface.
+- **The verdict screen shows what is judged (S1-87).** The banding
+  fragment gains `:subject`, `:question_text`, `:lean`, `:judged_text` and
+  `:judged_excerpt` (`AshJudgments.Banding.Review`), read as the actor.
+  The judged text is the observation's sealed state, opened by the host's
+  `AshJudgments.Banding.ReviewSource` (`config :ash_judgments,
+  :review_source`); the lean reads the thresholds of the table version
+  the banding recorded through the same module
+  (`ProposalDmn.thresholds/1` parses them). The verdicts surface shows
+  them, with the whole text in a detail, and asks for an `answer` (a
+  Yes/No picker when declared as an atom with `one_of: [:yes, :no]`) and
+  `why`.
+- **Duplicate review items settle together (S1-87).**
+  `HumanVerdict.FromBanding` settles, in one transaction, every banding
+  in review with no verdict whose observations share subject, question
+  hash and state digest with the banding's own, writing one verdict per
+  observation. `HumanVerdict.AwaitingVerdict` is the `:awaiting_verdict`
+  filter that lists one banding per subject, question and state.
+- **The judgment surfaces (#19).** `AshJudgments.A2ui`: `Verdicts`,
+  `BandTables`, `Certifications`, `Calibration` and `Facts`, macros a
+  host binds in its web layer, behind the optional `ash_a2ui`
+  dependency; `HumanVerdict.FromBanding` implements a banding's
+  `:record_verdict`.
+- **Optional agent-run lineage on the ledger (#20):** `run_id`,
+  `step_id`, `tool_call_id`, `invocation_id` and `release_manifest`,
+  nil by default, in `record_hash` only when set.
+
+### What a host changes:
+
+- Verdicts surface: declare `:record_verdict` with the arguments
+  `record_id`, `answer` and `why` (they were `value` and `reason`), and
+  `:awaiting_verdict` with `prepare {AshJudgments.HumanVerdict.AwaitingVerdict,
+  verdict_resource: …, judgment_resource: …}`. Implement
+  `AshJudgments.Banding.ReviewSource` and set `config :ash_judgments,
+  :review_source`; without it rows show no text and the lean says the
+  threshold is not known.
+- Band tables: set `low_band` per family where a lower range is wanted,
+  and pass `low_band: FamilyConfig.low_band(family)` wherever a proposal
+  is rendered. The banding step must record the table's `fact_value`
+  output whenever it is not null, `false` included: that is the
+  confident no.
+- No migrations: every new field is a calculation.
+
 ## [0.3.2] (2026-10-21)
 
 ### Bug Fixes:
