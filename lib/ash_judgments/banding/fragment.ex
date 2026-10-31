@@ -121,6 +121,22 @@ defmodule AshJudgments.Banding.Fragment do
     calculate :family, :string, {AshJudgments.Banding.Display, field: :family}, public?: true
     calculate :question, :string, {AshJudgments.Banding.Display, field: :question}, public?: true
     calculate :score, :string, {AshJudgments.Banding.Display, field: :score}, public?: true
+
+    # What the person judges (AshJudgments.Banding.Review): the subject,
+    # the question's wording, the lean, and the judged text opened by the
+    # host as the actor.
+    calculate :subject, :string, {AshJudgments.Banding.Review, field: :subject}, public?: true
+
+    calculate :question_text, :string, {AshJudgments.Banding.Review, field: :question_text},
+      public?: true
+
+    calculate :lean, :string, {AshJudgments.Banding.Review, field: :lean}, public?: true
+
+    calculate :judged_text, :string, {AshJudgments.Banding.Review, field: :judged_text},
+      public?: true
+
+    calculate :judged_excerpt, :string, {AshJudgments.Banding.Review, field: :judged_excerpt},
+      public?: true
   end
 
   actions do

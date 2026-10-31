@@ -18,19 +18,45 @@ defmodule AshJudgments.Calibration.ProposalDmn do
 
   ## The rendered table
 
-  Conformal selective prediction renders as a two-band decision table
-  over the conformal score (the flattened evidence-style input
-  `p_supports`, override with `:score_input`):
+  Conformal selective prediction renders as a decision table over the
+  conformal score (the flattened evidence-style input `p_supports`,
+  override with `:score_input`). With the upper threshold alone it has
+  two rules:
 
   - `score >= λ̂` → `admit` (`reason_code` `conformal_threshold_met`);
   - `score < λ̂` → `review` (`reason_code` `below_conformal_threshold`).
 
+  With a lower threshold (`thresholds["threshold_low"]`, see
+  `AshJudgments.Calibration.RiskControl.threshold_low/2`) **and** a
+  `:low_band` option it has three:
+
+  - `score >= λ̂` → `admit` (`conformal_threshold_met`);
+  - `score <= λ̂_low` → the family's low band, `reason_code`
+    `conformal_low_threshold_met`: `admit` with `fact_value` `false`
+    (`low_band: :admit_no`, a confident no), or `omit` (`low_band:
+    :omit`, nothing is admitted);
+  - between them, `(λ̂_low..λ̂)` → `review` (`below_conformal_threshold`).
+
+  Without either one the table is the two-rule table, byte for byte.
+
+  **`fact_value` is emitted only for `:admit_no`**, as a third output
+  typed `boolean`: `true` on the admit rule, `false` on the low rule and
+  `null` on review. `:admit_no` is a yes/no family's option, scored on
+  `p_true`, and both of its admit rules say which fact they admit, so a
+  yes and a confident no are stored as the same JSON boolean. The table
+  does not leave the yes to the host: a yes/no answer carries only a
+  probability, so there is no answer value to derive one from. The
+  host's banding step records the table's `fact_value` output whenever
+  it is not null, `false` included. `review` and `omit` carry no fact
+  value (the band contract keeps `fact_value` admit-only). The two-rule
+  and `:omit` tables have no `fact_value` output; the host derives an
+  admitted value as it did before.
+
   **There is no default rule** (ADR 0041): an input that is not a number
   — an absent or malformed score — matches no row (`number/1` fails, so
-  the evaluation errors), and that is a REFUSAL, not a result. The
-  `omit` band and any `fact_value` outputs are never invented here: this
-  renderer emits exactly what the run earned (the threshold), and the
-  frozen band enum's other outputs belong to the host's reviewed table.
+  the evaluation errors), and that is a REFUSAL, not a result. Every
+  rule renders a threshold the run earned; the only thing this module
+  adds is what the family's `low_band` says the lower range does.
 
   ## Structural validation
 
@@ -42,8 +68,10 @@ defmodule AshJudgments.Calibration.ProposalDmn do
   - `family_tag` — the frozen `judgments:family:<F>` tag naming
     (§7.1's convention);
   - `thresholds` — a map whose `"threshold"` parses as a decimal in
-    `[0, 1]` (the earned λ̂; nothing else in `thresholds` — a cost
-    matrix, say — is rendered).
+    `[0, 1]` (the earned λ̂), and whose `"threshold_low"`, when present,
+    parses as a decimal in `[0, 1]` strictly below it. Nothing else in
+    `thresholds` — a cost matrix, say — is rendered;
+  - `:low_band` — `:admit_no`, `:omit` or nil.
 
   Keys may be strings (the `:map` attribute's stored form) or atoms
   (`propose_band_table/3`'s output) — both render identically. Errors
@@ -69,6 +97,9 @@ defmodule AshJudgments.Calibration.ProposalDmn do
     so a banding over one question's answer leaves the others `null`.
     Each is declared a `string`, the bridge's decimal-string form (§4.3),
     and the table compares `number(...)` of it.
+  - `:low_band` — the family's low band (`FamilyConfig.low_band/1`):
+    `:admit_no`, `:omit`, or nil (the default: no lower range). It takes
+    effect only when the proposal carries a `"threshold_low"`.
 
   Returns `{:ok, xml}` or `{:error, findings}` — a non-empty list of
   human-readable findings. Never raises.
@@ -78,18 +109,21 @@ defmodule AshJudgments.Calibration.ProposalDmn do
 
   def render(proposal, opts) when is_map(proposal) and not is_struct(proposal) do
     score_inputs = opts |> Keyword.get(:score_input, "p_supports") |> List.wrap()
+    low_band = Keyword.get(opts, :low_band)
 
     findings =
       [
         key_finding(proposal),
         tag_finding(proposal),
         threshold_finding(proposal),
-        score_input_finding(score_inputs)
+        threshold_low_finding(proposal),
+        score_input_finding(score_inputs),
+        low_band_finding(low_band)
       ]
       |> Enum.reject(&is_nil/1)
 
     if findings == [] do
-      {:ok, document(proposal, score_inputs)}
+      {:ok, document(proposal, score_inputs, low_band)}
     else
       {:error, findings}
     end
@@ -99,7 +133,85 @@ defmodule AshJudgments.Calibration.ProposalDmn do
     {:error, ["the proposal must be a map of the recorded proposed_band_table shape"]}
   end
 
+  @doc """
+  Reads the thresholds back out of a band table this module rendered:
+  `{:ok, %{threshold: "0.77", threshold_low: "0.12" | nil, low_band:
+  :admit_no | :omit | nil}}`, or `:error` for a document that is not one
+  of its tables. Pure; a host reading what a recorded banding's table
+  version held passes that version's DMN text here (see
+  `AshJudgments.Banding.ReviewSource`).
+  """
+  @spec thresholds(String.t()) :: {:ok, map()} | :error
+  def thresholds(xml) when is_binary(xml) do
+    case rule_entry(xml, "rule_admit", "&gt;= ") do
+      nil ->
+        :error
+
+      threshold ->
+        {low, low_band} =
+          case rule_entry(xml, "rule_admit_no", "&lt;= ") do
+            nil -> {rule_entry(xml, "rule_omit", "&lt;= "), :omit}
+            low -> {low, :admit_no}
+          end
+
+        {:ok, %{threshold: threshold, threshold_low: low, low_band: low && low_band}}
+    end
+  end
+
+  def thresholds(_xml), do: :error
+
+  defp rule_entry(xml, rule_id, operator) do
+    pattern =
+      ~r/<rule id="#{rule_id}">\s*<inputEntry id="#{rule_id}_0"><text>#{operator}([0-9.]+)<\/text>/
+
+    case Regex.run(pattern, xml) do
+      [_, value] -> value
+      nil -> nil
+    end
+  end
+
   ## Structural validation
+
+  defp low_band_finding(low_band) when low_band in [nil, :admit_no, :omit], do: nil
+
+  defp low_band_finding(low_band),
+    do: "`:low_band` must be :admit_no, :omit or nil (got: #{inspect(low_band)})"
+
+  # A lower threshold, when present, must be a decimal in [0, 1] strictly
+  # below the upper one: ranges that overlap would claim the same scores.
+  defp threshold_low_finding(proposal) do
+    thresholds = fetch(proposal, :thresholds)
+
+    with true <- is_map(thresholds),
+         low when not is_nil(low) <- fetch(thresholds, :threshold_low) do
+      case decimal(low) do
+        {:ok, value} ->
+          range_finding(value) || overlap_finding(value, fetch(thresholds, :threshold))
+
+        :error ->
+          "the `thresholds[\"threshold_low\"]` must parse as a decimal in [0, 1] " <>
+            "(got: #{inspect(low)})"
+      end
+    else
+      _ -> nil
+    end
+  end
+
+  defp overlap_finding(low, threshold) do
+    case decimal(threshold) do
+      {:ok, high} ->
+        if Decimal.compare(low, high) == :lt do
+          nil
+        else
+          "the lower threshold must be below the threshold " <>
+            "(got: #{Decimal.to_string(low)} and #{Decimal.to_string(high)})"
+        end
+
+      # The upper threshold's own finding names it.
+      :error ->
+        nil
+    end
+  end
 
   defp score_input_finding(names) do
     if names != [] and Enum.all?(names, &(is_binary(&1) and String.trim(&1) != "")) do
@@ -182,12 +294,22 @@ defmodule AshJudgments.Calibration.ProposalDmn do
 
   ## The document
 
-  defp document(proposal, score_inputs) do
+  defp document(proposal, score_inputs, low_band) do
     key = fetch(proposal, :definition_key)
-    threshold = proposal |> fetch(:thresholds) |> fetch(:threshold)
+    thresholds = fetch(proposal, :thresholds)
+    threshold = fetch(thresholds, :threshold)
     id = ncname(key)
 
-    # The decision's result is the two outputs' context, so its variable
+    table =
+      case fetch(thresholds, :threshold_low) do
+        low when not is_nil(low) and low_band != nil ->
+          three_rules(threshold, low, low_band)
+
+        _ ->
+          two_rules(threshold)
+      end
+
+    # The decision's result is the outputs' context, so its variable
     # carries no typeRef: typed `string`, every evaluation is a type error.
     # The inputs are declared but not required: a family's table reads one
     # question's score, and an information requirement makes the engine
@@ -210,24 +332,84 @@ defmodule AshJudgments.Calibration.ProposalDmn do
               <text>#{escape(score_expression(score_inputs))}</text>
             </inputExpression>
           </input>
-          <output id="clause_band" name="band" label="band" typeRef="string"/>
-          <output id="clause_reason_code" name="reason_code" label="reason_code" typeRef="string"/>
-          <rule id="rule_admit">
-            <inputEntry id="rule_admit_0"><text>&gt;= #{escape(threshold)}</text></inputEntry>
-            <outputEntry id="rule_admit_1"><text>"admit"</text></outputEntry>
-            <outputEntry id="rule_admit_2"><text>"conformal_threshold_met"</text></outputEntry>
-          </rule>
-          <rule id="rule_review">
-            <inputEntry id="rule_review_0"><text>&lt; #{escape(threshold)}</text></inputEntry>
-            <outputEntry id="rule_review_1"><text>"review"</text></outputEntry>
-            <outputEntry id="rule_review_2"><text>"below_conformal_threshold"</text></outputEntry>
-          </rule>
+    #{table}
         </decisionTable>
       </decision>
     </definitions>
     """
     |> String.trim_trailing("\n")
   end
+
+  @band_outputs """
+        <output id="clause_band" name="band" label="band" typeRef="string"/>
+        <output id="clause_reason_code" name="reason_code" label="reason_code" typeRef="string"/>\
+  """
+
+  @fact_value_output """
+        <output id="clause_fact_value" name="fact_value" label="fact_value" typeRef="boolean"/>\
+  """
+
+  defp two_rules(threshold) do
+    Enum.join(
+      [
+        @band_outputs,
+        rule("rule_admit", ">= #{threshold}", ["admit", "conformal_threshold_met"]),
+        rule("rule_review", "< #{threshold}", ["review", "below_conformal_threshold"])
+      ],
+      "\n"
+    )
+  end
+
+  defp three_rules(threshold, low, :admit_no) do
+    Enum.join(
+      [
+        @band_outputs,
+        @fact_value_output,
+        rule("rule_admit", ">= #{threshold}", ["admit", "conformal_threshold_met", true]),
+        rule("rule_admit_no", "<= #{low}", ["admit", "conformal_low_threshold_met", false]),
+        rule("rule_review", "(#{low}..#{threshold})", [
+          "review",
+          "below_conformal_threshold",
+          :null
+        ])
+      ],
+      "\n"
+    )
+  end
+
+  defp three_rules(threshold, low, :omit) do
+    Enum.join(
+      [
+        @band_outputs,
+        rule("rule_admit", ">= #{threshold}", ["admit", "conformal_threshold_met"]),
+        rule("rule_omit", "<= #{low}", ["omit", "conformal_low_threshold_met"]),
+        rule("rule_review", "(#{low}..#{threshold})", ["review", "below_conformal_threshold"])
+      ],
+      "\n"
+    )
+  end
+
+  defp rule(id, input_entry, outputs) do
+    entries =
+      outputs
+      |> Enum.with_index(1)
+      |> Enum.map_join("\n", fn {output, i} ->
+        ~s(        <outputEntry id="#{id}_#{i}"><text>#{feel(output)}</text></outputEntry>)
+      end)
+
+    """
+          <rule id="#{id}">
+            <inputEntry id="#{id}_0"><text>#{escape(input_entry)}</text></inputEntry>
+    #{entries}
+          </rule>\
+    """
+  end
+
+  defp feel(:null), do: "null"
+  defp feel(true), do: "true"
+  defp feel(false), do: "false"
+  # Output literals are the fixed band vocabulary: nothing to escape.
+  defp feel(value) when is_binary(value), do: ~s("#{value}")
 
   defp input_data(name) do
     """

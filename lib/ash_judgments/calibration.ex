@@ -74,13 +74,19 @@ defmodule AshJudgments.Calibration do
     `proposed_band_table` + the host's draft definition). Never
     certified, never published here.
   - `{:error, findings}` — `:n_below_min` (naming family, required n,
-    actual n), `:n_per_class_below_min`, or `:metrics_miss_pass_bar`
-    (the run's own pre-registered pass bar said no). A refusal never
-    writes anything.
+    actual n), `:n_per_class_below_min`, `:metrics_miss_pass_bar`
+    (the run's own pre-registered pass bar said no), or
+    `:thresholds_overlap` (the run earned a lower threshold at or above
+    its upper one, so the ranges would claim the same scores). A refusal
+    never writes anything.
 
   The proposed THRESHOLDS come from the run's recorded
   `conformal_thresholds` at the family's α — thresholds are earned,
-  never hand-set (ADR 0041).
+  never hand-set (ADR 0041). They are `%{"threshold" => λ̂}`, plus
+  `"threshold_low" => λ̂_low` when the run earned a lower threshold
+  (`RiskControl.threshold_low/2`). Whether the table renders the lower
+  range is the family's `low_band` (`FamilyConfig`), which the caller
+  passes to `ProposalDmn.render/2`.
   """
   @spec propose_band_table(map(), map(), keyword()) ::
           {:ok, map()} | {:error, [map()]}
@@ -96,7 +102,43 @@ defmodule AshJudgments.Calibration do
   end
 
   defp run_findings(run, config, band_input) do
-    n_finding(run, config, band_input) ++ per_class_finding(run, config) ++ pass_bar_finding(run)
+    n_finding(run, config, band_input) ++
+      per_class_finding(run, config) ++
+      pass_bar_finding(run) ++ thresholds_finding(run, config)
+  end
+
+  # A lower threshold at or above the upper one makes ranges that claim
+  # the same scores: refused, never rendered.
+  defp thresholds_finding(run, config) do
+    thresholds = thresholds_at(run, config) || %{}
+    threshold = decimal_of(thresholds["threshold"])
+    threshold_low = decimal_of(thresholds["threshold_low"])
+
+    if threshold && threshold_low && Decimal.compare(threshold_low, threshold) != :lt do
+      [
+        %{
+          finding: :thresholds_overlap,
+          family: run.family,
+          threshold: thresholds["threshold"],
+          threshold_low: thresholds["threshold_low"]
+        }
+      ]
+    else
+      []
+    end
+  end
+
+  defp thresholds_at(run, config) do
+    (run.conformal_thresholds || %{})[Float.to_string(config.alpha)]
+  end
+
+  defp decimal_of(nil), do: nil
+
+  defp decimal_of(value) do
+    case Decimal.parse(to_string(value)) do
+      {decimal, ""} -> decimal
+      _ -> nil
+    end
   end
 
   defp n_finding(run, config, band_input) do
@@ -179,10 +221,7 @@ defmodule AshJudgments.Calibration do
   defp proposal(run, band_input, config, opts) do
     definition_key = Keyword.get(opts, :definition_key, "bands_" <> run.family)
     alpha_key = Float.to_string(config.alpha)
-
-    threshold =
-      (run.conformal_thresholds || %{})[alpha_key] ||
-        (run.conformal_thresholds || %{})[Float.to_string(config.alpha)]
+    threshold = thresholds_at(run, config)
 
     %{
       definition_key: definition_key,
@@ -212,7 +251,9 @@ defmodule AshJudgments.Calibration do
     verifier refuses a table naming a digest with no run — ADR 0041);
   - the same region;
   - an `eval_set_hash` recorded on the run;
-  - a run age ≤ the family's `max_age_days`.
+  - a run age ≤ the family's `max_age_days`;
+  - thresholds that do not overlap: a lower threshold, when the run
+    earned one, below the upper one (`:thresholds_overlap`).
 
   Arguments: the definition ref (`%{family:, model_digest:,
   runtime_version:, region:}`), the certification row (or nil), the
@@ -229,7 +270,8 @@ defmodule AshJudgments.Calibration do
         digest_finding(definition, run),
         region_finding(definition, run),
         eval_set_finding(definition, run),
-        age_finding(definition, run, config)
+        age_finding(definition, run, config),
+        run_thresholds_finding(run, config)
       ]
       |> List.flatten()
 
@@ -292,6 +334,9 @@ defmodule AshJudgments.Calibration do
       ]
     end
   end
+
+  defp run_thresholds_finding(nil, _config), do: []
+  defp run_thresholds_finding(run, config), do: thresholds_finding(run, config)
 
   defp region_finding(_definition, nil), do: []
 

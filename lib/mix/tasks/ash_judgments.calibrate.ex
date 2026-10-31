@@ -113,7 +113,10 @@ defmodule Mix.Tasks.AshJudgments.Calibrate do
 
   defp propose_ok(family, source, run_input, proposal, opts) do
     recorded_proposal = stringify(proposal)
-    {:ok, xml} = AshJudgments.Calibration.ProposalDmn.render(recorded_proposal)
+    low_band = AshJudgments.Calibration.FamilyConfig.low_band(family)
+
+    {:ok, xml} =
+      AshJudgments.Calibration.ProposalDmn.render(recorded_proposal, low_band: low_band)
 
     if opts[:dry_run] do
       say_head(family, source, run_input)
@@ -289,17 +292,23 @@ defmodule Mix.Tasks.AshJudgments.Calibrate do
 
   defp n_per_class(_kind, _pairs, input), do: input[:n_per_class] || %{}
 
-  # The earned threshold at the family's α — never hand-set (ADR 0041).
-  # An absent λ̂ (the family cannot certify at this α) records an empty
+  # The earned thresholds at the family's α — never hand-set (ADR 0041):
+  # the upper λ̂ and, when earned, the lower λ̂_low over the same pairs.
+  # Neither earned (the family cannot certify at this α) records an empty
   # map: the proposal trigger's honest refusal, nothing quieter.
   defp conformal_thresholds(family, input) do
     alpha = AshJudgments.Calibration.FamilyConfig.alpha(family)
     scored = Map.get(input, :scored, [])
 
-    case AshJudgments.Calibration.RiskControl.threshold(scored, alpha) do
-      nil -> %{}
-      lambda -> %{Float.to_string(alpha) => %{"threshold" => decimal_string(lambda)}}
-    end
+    earned =
+      %{
+        "threshold" => AshJudgments.Calibration.RiskControl.threshold(scored, alpha),
+        "threshold_low" => AshJudgments.Calibration.RiskControl.threshold_low(scored, alpha)
+      }
+      |> Enum.reject(fn {_key, lambda} -> is_nil(lambda) end)
+      |> Map.new(fn {key, lambda} -> {key, decimal_string(lambda)} end)
+
+    if earned == %{}, do: %{}, else: %{Float.to_string(alpha) => earned}
   end
 
   defp propose(run_input) do

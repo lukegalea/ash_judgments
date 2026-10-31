@@ -62,6 +62,13 @@ defmodule AshJudgments.CalibrateTaskTest do
        }}
     end
 
+    # The same pairs, scored so that a lower threshold is earned too: at
+    # α = 0.016 (no error allowed) λ̂ = 0.95 and λ̂_low = 0.05.
+    def load("clinic_split", :eval_set) do
+      {:ok, input} = load("clinic_triage", :eval_set)
+      {:ok, %{input | scored: AshJudgments.CalibrateTaskTest.split_scored()}}
+    end
+
     def load(_family, _source), do: {:error, :unknown_family}
   end
 
@@ -129,6 +136,44 @@ defmodule AshJudgments.CalibrateTaskTest do
       assert run.proposed_band_table["thresholds"] == %{"threshold" => "0.9"}
 
       assert output =~ run.id
+    end
+
+    test "a lower threshold is recorded and the family's low band renders the third range" do
+      configure_seams()
+      Application.put_env(:ash_judgments, :families, %{clinic_split: %{low_band: :admit_no}})
+      on_exit(fn -> Application.delete_env(:ash_judgments, :families) end)
+
+      output =
+        capture_io(fn ->
+          Mix.Tasks.AshJudgments.Calibrate.run(["clinic_split"])
+        end)
+
+      [run] = runs()
+
+      assert run.conformal_thresholds == %{
+               "0.016" => %{"threshold" => "0.95", "threshold_low" => "0.05"}
+             }
+
+      assert run.proposed_band_table["thresholds"] == %{
+               "threshold" => "0.95",
+               "threshold_low" => "0.05"
+             }
+
+      assert output =~ ~s(<rule id="rule_admit_no">)
+      assert output =~ ~s(<text>(0.05..0.95\)</text>)
+    end
+
+    test "without a low band the lower threshold is recorded but not rendered" do
+      configure_seams()
+
+      output =
+        capture_io(fn ->
+          Mix.Tasks.AshJudgments.Calibrate.run(["clinic_split", "--dry-run"])
+        end)
+
+      assert output =~ ~s("threshold_low" => "0.05")
+      refute output =~ "rule_admit_no"
+      refute output =~ "rule_omit"
     end
 
     test "a refused proposal records the run as :no_table (negative results are kept)" do
@@ -202,6 +247,10 @@ defmodule AshJudgments.CalibrateTaskTest do
 
   def pairs, do: @pairs
   def scored, do: @scored
+
+  def split_scored,
+    do: List.duplicate({0.95, true}, 35) ++ List.duplicate({0.05, false}, 35)
+
   def question_hash, do: @question_hash
   def digest, do: @digest
   def eval_set_hash, do: @eval_set_hash

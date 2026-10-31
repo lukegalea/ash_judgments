@@ -23,7 +23,8 @@ defmodule AshJudgments.A2ui.BandTables do
     as the actor, and publish. A verifier refusal should come back as the
     action's error, which the surface shows. Make it human-only.
 
-  The surface shows the fragment's `:threshold` calculation and the run's
+  The surface shows the fragment's `:threshold` and `:threshold_low`
+  calculations (the lower one is blank when the run earned none) and the run's
   `family`, `n`, `ece`, `brier`, `model_version` and `finished_at`.
   """
   @moduledoc since: "0.3.3"
@@ -52,14 +53,24 @@ defmodule AshJudgments.A2ui.BandTables do
         end
 
         component :table do
-          fields [:family, :n, :threshold, :ece, :brier, :model_version, :finished_at]
+          fields [
+            :family,
+            :n,
+            :threshold,
+            :threshold_low,
+            :ece,
+            :brier,
+            :model_version,
+            :finished_at
+          ]
+
           read_action unquote(read_action)
           query :proposals
           row_actions [unquote(certify_action)]
 
           row_layout do
             title :family
-            meta [:n, :threshold, :ece, :brier, :model_version, :finished_at]
+            meta [:n, :threshold, :threshold_low, :ece, :brier, :model_version, :finished_at]
             columns 3
           end
         end
@@ -75,6 +86,10 @@ defmodule AshJudgments.A2ui.BandTables do
 
         field :threshold do
           label "Threshold (at α)"
+        end
+
+        field :threshold_low do
+          label "Lower threshold (at α)"
         end
 
         field :ece do
