@@ -31,6 +31,7 @@ defmodule AshJudgments.Availability do
           | :ash_decisions
           | :ash_events
           | :opentelemetry_ash
+          | :ash_a2ui
 
   @integrations [
     %{
@@ -74,6 +75,14 @@ defmodule AshJudgments.Availability do
       dep: ~s({:opentelemetry_ash, "~> 0.1"}),
       consumers: [AshJudgments.Telemetry],
       concept: "a span per judge call as a child of the Ash action span"
+    },
+    %{
+      integration: :ash_a2ui,
+      module: AshA2ui,
+      dep: ~s({:ash_a2ui, github: "lukegalea/ash_a2ui"}),
+      consumers: [AshJudgments.A2ui],
+      concept:
+        "the judgment surfaces a host binds: verdicts, band tables, certifications, calibration, facts"
     }
   ]
 

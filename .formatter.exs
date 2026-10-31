@@ -6,6 +6,6 @@
 [
   # ash's formatter plugins keep the DSL blocks in our test resources shaped
   # the same way ash projects format them.
-  import_deps: [:ash],
+  import_deps: [:ash, :ash_a2ui],
   inputs: ["{mix,.formatter}.exs", "{config,lib,test}/**/*.{ex,exs}"]
 ]

@@ -143,6 +143,13 @@ defmodule AshJudgments.Calibration.Fragment do
     identity :unique_id, [:id]
   end
 
+  calculations do
+    calculate :threshold, :string, AshJudgments.Calibration.Threshold,
+      public?: true,
+      description:
+        "The conformal threshold at the family's α, as recorded; nil when the run earned none."
+  end
+
   actions do
     create :record do
       description "Records a calibration run (§8.1). Accepts every field — computed before, recorded as inputs (law 2)."

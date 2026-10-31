@@ -105,6 +105,10 @@ defmodule AshJudgments.MixProject do
       # degrade to the events.
       {:telemetry_metrics, "~> 1.0", optional: true},
       {:ash_decisions, github: "lukegalea/ash_decisions", optional: true},
+      # The judgment surfaces (AshJudgments.A2ui, ADR 0061 in ash_enterprise):
+      # macros a host binds in its web layer. Optional: a host without it
+      # keeps every record and action, and binds no surface.
+      {:ash_a2ui, github: "lukegalea/ash_a2ui", optional: true},
       {:ash_events,
        github: "lukegalea/ash_events",
        branch: "temporal-as-of-support-0.7",

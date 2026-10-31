@@ -16,6 +16,22 @@ defmodule AshJudgments.Test.CalibrationRun do
     table "test_calibration_runs"
     repo(AshJudgments.TestRepo)
   end
+
+  # The AshJudgments.A2ui.BandTables contract. Publication is host
+  # machinery; this host only records that it was asked.
+  actions do
+    read :awaiting_certification do
+      filter expr(
+               result == :proposed_table and
+                 not exists(AshJudgments.Test.Certification, calibration_run_id == parent(id))
+             )
+    end
+
+    action :certify_and_publish, :map do
+      argument :record_id, :uuid, allow_nil?: false
+      run fn input, _context -> {:ok, %{certified: input.arguments.record_id}} end
+    end
+  end
 end
 
 defmodule AshJudgments.Test.CalibrationSample do

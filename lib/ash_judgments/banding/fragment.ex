@@ -45,7 +45,7 @@ defmodule AshJudgments.Banding.Fragment do
       writable?: true,
       public?: true
 
-    create_timestamp :banded_at
+    create_timestamp :banded_at, public?: true
 
     attribute :record_version, :string,
       default: "0",
@@ -113,6 +113,14 @@ defmodule AshJudgments.Banding.Fragment do
       description: "e.g. accelerator_mismatch, digest_missing, audit_sample_selected"
 
     attribute :correlation_id, :uuid, public?: true
+  end
+
+  # What a person reviewing the banding reads (AshJudgments.Banding.Display):
+  # recorded inputs read back, never a recomputed band.
+  calculations do
+    calculate :family, :string, {AshJudgments.Banding.Display, field: :family}, public?: true
+    calculate :question, :string, {AshJudgments.Banding.Display, field: :question}, public?: true
+    calculate :score, :string, {AshJudgments.Banding.Display, field: :score}, public?: true
   end
 
   actions do
