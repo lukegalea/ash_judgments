@@ -44,6 +44,12 @@ jobs:
       - uses: ./.github/actions/setup-beam
         with:
           deps-token: ${{ secrets.PRIVATE_DEPS_TOKEN }}
+      # boxic_dmn (under the optional ash_decisions) shells out to xmllint to
+      # validate a DMN document against the XSD before it evaluates one; the
+      # ProposalDmn tests evaluate the rendered table. Declared, not assumed
+      # from the runner image.
+      - name: Install xmllint
+        run: sudo apt-get update -y && sudo apt-get install -y libxml2-utils
       - run: mix test
 
   compile-test:

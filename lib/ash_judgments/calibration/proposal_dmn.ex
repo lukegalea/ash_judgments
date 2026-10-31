@@ -26,8 +26,8 @@ defmodule AshJudgments.Calibration.ProposalDmn do
   - `score < λ̂` → `review` (`reason_code` `below_conformal_threshold`).
 
   **There is no default rule** (ADR 0041): an input that is not a number
-  — an absent or malformed score — matches no row, `matched_rule_ids`
-  comes back empty, and that empty match is a REFUSAL, not a result. The
+  — an absent or malformed score — matches no row (`number/1` fails, so
+  the evaluation errors), and that is a REFUSAL, not a result. The
   `omit` band and any `fact_value` outputs are never invented here: this
   renderer emits exactly what the run earned (the threshold), and the
   frozen band enum's other outputs belong to the host's reviewed table.
@@ -61,8 +61,14 @@ defmodule AshJudgments.Calibration.ProposalDmn do
   `proposal` is the recorded `CalibrationRun.proposed_band_table` map
   (or `propose_band_table/3`'s return, atom-keyed). Options:
 
-  - `:score_input` — the FEEL input name the threshold gates on
-    (default `"p_supports"`, the flattened evidence-style score input).
+  - `:score_input` — the FEEL input the threshold gates on, or a list
+    of them (default `"p_supports"`). Pass the names
+    `AshJudgments.Bridge.Dmn.inputs/2` flattens the family's answers to,
+    such as `"<question>__p_true"` for a noul question: one per question
+    when the family has several. The table reads the first one present,
+    so a banding over one question's answer leaves the others `null`.
+    Each is declared a `string`, the bridge's decimal-string form (§4.3),
+    and the table compares `number(...)` of it.
 
   Returns `{:ok, xml}` or `{:error, findings}` — a non-empty list of
   human-readable findings. Never raises.
@@ -71,14 +77,19 @@ defmodule AshJudgments.Calibration.ProposalDmn do
   def render(proposal, opts \\ [])
 
   def render(proposal, opts) when is_map(proposal) and not is_struct(proposal) do
-    score_input = Keyword.get(opts, :score_input, "p_supports")
+    score_inputs = opts |> Keyword.get(:score_input, "p_supports") |> List.wrap()
 
     findings =
-      [key_finding(proposal), tag_finding(proposal), threshold_finding(proposal)]
+      [
+        key_finding(proposal),
+        tag_finding(proposal),
+        threshold_finding(proposal),
+        score_input_finding(score_inputs)
+      ]
       |> Enum.reject(&is_nil/1)
 
     if findings == [] do
-      {:ok, document(proposal, score_input)}
+      {:ok, document(proposal, score_inputs)}
     else
       {:error, findings}
     end
@@ -89,6 +100,14 @@ defmodule AshJudgments.Calibration.ProposalDmn do
   end
 
   ## Structural validation
+
+  defp score_input_finding(names) do
+    if names != [] and Enum.all?(names, &(is_binary(&1) and String.trim(&1) != "")) do
+      nil
+    else
+      "`:score_input` must be a non-empty input name or a non-empty list of them"
+    end
+  end
 
   defp key_finding(proposal) do
     key = fetch(proposal, :definition_key)
@@ -163,12 +182,16 @@ defmodule AshJudgments.Calibration.ProposalDmn do
 
   ## The document
 
-  defp document(proposal, score_input) do
+  defp document(proposal, score_inputs) do
     key = fetch(proposal, :definition_key)
     threshold = proposal |> fetch(:thresholds) |> fetch(:threshold)
     id = ncname(key)
-    score = ncname(score_input)
 
+    # The decision's result is the two outputs' context, so its variable
+    # carries no typeRef: typed `string`, every evaluation is a type error.
+    # The inputs are declared but not required: a family's table reads one
+    # question's score, and an information requirement makes the engine
+    # refuse the other questions' absent inputs.
     """
     <?xml version="1.0" encoding="UTF-8"?>
     <definitions xmlns="https://www.omg.org/spec/DMN/20230324/MODEL/"
@@ -178,18 +201,13 @@ defmodule AshJudgments.Calibration.ProposalDmn do
                  namespace="https://ash-judgments.test/#{id}"
                  expressionLanguage="https://www.omg.org/spec/DMN/20230324/FEEL/"
                  typeLanguage="https://www.omg.org/spec/DMN/20230324/FEEL/">
-      <inputData id="input_#{score}" name="#{escape(score_input)}">
-        <variable id="var_#{score}" name="#{escape(score_input)}" typeRef="number"/>
-      </inputData>
+    #{Enum.map_join(score_inputs, "\n", &input_data/1)}
       <decision id="decision_#{id}" name="#{escape(key)}">
-        <variable id="var_#{id}" name="#{escape(key)}" typeRef="string"/>
-        <informationRequirement id="req_#{score}">
-          <requiredInput href="#input_#{score}"/>
-        </informationRequirement>
+        <variable id="var_#{id}" name="#{escape(key)}"/>
         <decisionTable id="table_#{id}" hitPolicy="UNIQUE" outputLabel="band">
-          <input id="clause_#{score}" label="Conformal score">
-            <inputExpression id="expr_#{score}" typeRef="number">
-              <text>#{escape(score_input)}</text>
+          <input id="clause_score" label="Conformal score">
+            <inputExpression id="expr_score" typeRef="number">
+              <text>#{escape(score_expression(score_inputs))}</text>
             </inputExpression>
           </input>
           <output id="clause_band" name="band" label="band" typeRef="string"/>
@@ -209,6 +227,26 @@ defmodule AshJudgments.Calibration.ProposalDmn do
     </definitions>
     """
     |> String.trim_trailing("\n")
+  end
+
+  defp input_data(name) do
+    """
+      <inputData id="input_#{ncname(name)}" name="#{escape(name)}">
+        <variable id="var_#{ncname(name)}" name="#{escape(name)}" typeRef="string"/>
+      </inputData>\
+    """
+  end
+
+  # The first input present: an absent input reads `null`. When none is
+  # present, or the value is not a number, `number/1` fails and no row
+  # matches.
+  defp score_expression([name]), do: "number(#{name})"
+
+  defp score_expression(names) do
+    {last, firsts} = List.pop_at(names, -1)
+
+    "number(" <>
+      Enum.map_join(firsts, "", &"if #{&1} != null then #{&1} else ") <> last <> ")"
   end
 
   # DMN ids must be NCNames; a definition key is rendered verbatim in

@@ -6,7 +6,8 @@ defmodule AshJudgments.Calibration.ProposalDmnTest do
   @moduledoc """
   S1-25: the proposal's DMN rendering — the golden document for a fixed
   recorded proposal, the string/atom key equivalence, the score-input
-  override, and the structural validation refusals.
+  override, the table evaluated as the bridge feeds it, and the
+  structural validation refusals.
   """
 
   use ExUnit.Case, async: true
@@ -36,17 +37,14 @@ defmodule AshJudgments.Calibration.ProposalDmnTest do
                        expressionLanguage="https://www.omg.org/spec/DMN/20230324/FEEL/"
                        typeLanguage="https://www.omg.org/spec/DMN/20230324/FEEL/">
             <inputData id="input_p_supports" name="p_supports">
-              <variable id="var_p_supports" name="p_supports" typeRef="number"/>
+              <variable id="var_p_supports" name="p_supports" typeRef="string"/>
             </inputData>
             <decision id="decision_bands_clinic_triage" name="bands_clinic_triage">
-              <variable id="var_bands_clinic_triage" name="bands_clinic_triage" typeRef="string"/>
-              <informationRequirement id="req_p_supports">
-                <requiredInput href="#input_p_supports"/>
-              </informationRequirement>
+              <variable id="var_bands_clinic_triage" name="bands_clinic_triage"/>
               <decisionTable id="table_bands_clinic_triage" hitPolicy="UNIQUE" outputLabel="band">
-                <input id="clause_p_supports" label="Conformal score">
-                  <inputExpression id="expr_p_supports" typeRef="number">
-                    <text>p_supports</text>
+                <input id="clause_score" label="Conformal score">
+                  <inputExpression id="expr_score" typeRef="number">
+                    <text>number(p_supports)</text>
                   </inputExpression>
                 </input>
                 <output id="clause_band" name="band" label="band" typeRef="string"/>
@@ -112,8 +110,25 @@ defmodule AshJudgments.Calibration.ProposalDmnTest do
       assert {:ok, xml} = ProposalDmn.render(@proposal, score_input: "p_true")
 
       assert xml =~ ~s(name="p_true")
-      assert xml =~ ~s(<text>p_true</text>)
+      assert xml =~ ~s|<text>number(p_true)</text>|
       refute xml =~ "p_supports"
+    end
+
+    test "a family of several questions reads the first score present" do
+      assert {:ok, xml} =
+               ProposalDmn.render(@proposal,
+                 score_input: ["q1__p_true", "q2__p_true", "q3__p_true"]
+               )
+
+      for name <- ["q1__p_true", "q2__p_true", "q3__p_true"] do
+        assert xml =~ ~s(<inputData id="input_#{name}" name="#{name}">)
+      end
+
+      refute xml =~ "requiredInput"
+
+      assert xml =~
+               "<text>number(if q1__p_true != null then q1__p_true else " <>
+                 "if q2__p_true != null then q2__p_true else q3__p_true)</text>"
     end
 
     test "thresholds carry only the earned threshold; extra keys are not invented into the table" do
@@ -125,6 +140,38 @@ defmodule AshJudgments.Calibration.ProposalDmnTest do
 
       assert {:ok, xml} = ProposalDmn.render(proposal)
       assert xml == @golden
+    end
+  end
+
+  # The rendered document through the DMN engine ash_decisions evaluates
+  # with, fed the way `AshJudgments.Bridge.Dmn.inputs/2` feeds it: decimal
+  # strings under question-keyed names.
+  describe "the rendered table bands what the bridge sends" do
+    setup do
+      {:ok, xml} =
+        ProposalDmn.render(@proposal, score_input: ["q1__p_true", "q2__p_true"])
+
+      {:ok, model} = Boxic.DMN.load_xml(xml)
+      %{band: &Boxic.DMN.evaluate_with_trace(model, "bands_clinic_triage", &1)}
+    end
+
+    test "a score at or above the threshold admits", %{band: band} do
+      assert {:ok, %{"band" => "admit", "reason_code" => "conformal_threshold_met"},
+              %{matched_rules: ["rule_admit"]}} = band.(%{"q1__p_true" => "0.93"})
+    end
+
+    test "a score below the threshold goes to review", %{band: band} do
+      assert {:ok, %{"band" => "review", "reason_code" => "below_conformal_threshold"},
+              %{matched_rules: ["rule_review"]}} = band.(%{"q1__p_true" => "0.5"})
+    end
+
+    test "another question of the family is read when the first is absent", %{band: band} do
+      assert {:ok, %{"band" => "admit"}, _trace} = band.(%{"q2__p_true" => "0.97"})
+    end
+
+    test "no score, or a malformed one, matches no row", %{band: band} do
+      assert {:error, _} = band.(%{})
+      assert {:error, _} = band.(%{"q1__p_true" => "not a number"})
     end
   end
 
@@ -161,6 +208,12 @@ defmodule AshJudgments.Calibration.ProposalDmnTest do
                ProposalDmn.render(%{@proposal | "thresholds" => %{"threshold" => "hand-set"}})
 
       assert Enum.any?(findings, &(&1 =~ "must parse as a decimal"))
+    end
+
+    test "an empty score input is refused" do
+      assert {:error, [finding]} = ProposalDmn.render(@proposal, score_input: [])
+      assert finding =~ "score_input"
+      assert {:error, [_]} = ProposalDmn.render(@proposal, score_input: ["q1__p_true", ""])
     end
 
     test "a threshold outside [0, 1] is refused" do
