@@ -22,6 +22,7 @@ defmodule AshJudgments.AvailabilityTest do
         |> Enum.sort()
 
       assert names == [
+               :ash_a2ui,
                :ash_bpmn,
                :ash_compliance,
                :ash_decisions,

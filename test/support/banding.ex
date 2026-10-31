@@ -24,6 +24,29 @@ defmodule AshJudgments.Test.Banding do
     table "test_bandings"
     repo(AshJudgments.TestRepo)
   end
+
+  # The AshJudgments.A2ui.Verdicts contract, as a host declares it.
+  actions do
+    read :awaiting_verdict do
+      filter expr(
+               band == :review and
+                 not exists(
+                   AshJudgments.Test.HumanVerdict,
+                   judgment_id in parent(observation_ids)
+                 )
+             )
+    end
+
+    action :record_verdict, :map do
+      argument :record_id, :uuid, allow_nil?: false
+      argument :value, :string, allow_nil?: false
+      argument :reason, :string
+
+      run {AshJudgments.HumanVerdict.FromBanding,
+           verdict_resource: AshJudgments.Test.HumanVerdict,
+           judgment_resource: AshJudgments.Test.Judgment}
+    end
+  end
 end
 
 defmodule AshJudgments.Test.Certification do
@@ -46,5 +69,12 @@ defmodule AshJudgments.Test.Certification do
   postgres do
     table "test_band_table_certifications"
     repo(AshJudgments.TestRepo)
+  end
+
+  # The AshJudgments.A2ui.Certifications contract.
+  actions do
+    read :certified do
+      filter expr(status == :certified)
+    end
   end
 end

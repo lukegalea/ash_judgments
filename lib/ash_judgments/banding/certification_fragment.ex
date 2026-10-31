@@ -26,7 +26,7 @@ defmodule AshJudgments.Banding.CertificationFragment do
   attributes do
     uuid_primary_key :id
 
-    create_timestamp :certified_at
+    create_timestamp :certified_at, public?: true
 
     attribute :record_version, :string,
       default: "0",
