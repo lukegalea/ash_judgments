@@ -6,8 +6,9 @@ defmodule AshJudgments.Calibration.Threshold do
   A calibration run's conformal threshold at its family's α
   (`AshJudgments.Calibration.FamilyConfig.alpha/1`): the calibration
   fragment's `:threshold` calculation, a decimal string, or nil when the
-  run earned none at that α. Display only: the proposal and the verifier
-  read `conformal_thresholds` themselves.
+  run earned none at that α. With `key: "threshold_low"` it is the
+  `:threshold_low` calculation, the lower threshold. Display only: the
+  proposal and the verifier read `conformal_thresholds` themselves.
   """
   @moduledoc since: "0.3.3"
 
@@ -19,10 +20,12 @@ defmodule AshJudgments.Calibration.Threshold do
   def load(_query, _opts, _context), do: [:family, :conformal_thresholds]
 
   @impl true
-  def calculate(records, _opts, _context) do
+  def calculate(records, opts, _context) do
+    key = Keyword.get(opts, :key, "threshold")
+
     Enum.map(records, fn run ->
       alpha = run.family |> FamilyConfig.alpha() |> Float.to_string()
-      get_in(run.conformal_thresholds || %{}, [alpha, "threshold"])
+      get_in(run.conformal_thresholds || %{}, [alpha, key])
     end)
   end
 end

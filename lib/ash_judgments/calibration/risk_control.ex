@@ -23,6 +23,24 @@ defmodule AshJudgments.Calibration.RiskControl do
   guarantees `E[L(λ̂)] ≤ α`. To certify conditional error ≤ 2% at
   planning coverage ≥ 80%, set α = 0.8 × 2% = 0.016. Feasibility
   rearranges to `n ≥ (e + 1)/α − 1`.
+
+  **The lower threshold** is the same rule with the loss reversed, over
+  the same n and the same α. The loss for item i at λ is `Lᵢ(λ) = 1` iff
+  the model would admit i as a no (score ≤ λ) **and** the gold label is
+  `supports` (yes):
+
+      λ̂_low = sup { λ : ( Σᵢ Lᵢ(λ) + 1 ) / (n + 1) ≤ α }
+
+  taken over the observed scores, so it is the largest observed score
+  that meets the budget (`threshold_low/2`), or nil when none does. The
+  reversed loss is monotone the other way (it grows with λ), so the same
+  guarantee holds for what the lower range admits. A table with both
+  thresholds has three ranges: `score ≥ λ̂` admits yes, `score ≤ λ̂_low`
+  is the family's low band, and the scores between go to review. The two
+  only make a table when `λ̂_low < λ̂`; a model that separates the classes
+  well can earn overlapping thresholds at a loose α, and
+  `AshJudgments.Calibration.propose_band_table/3` refuses those.
+  The clinic-demo reference implements only the upper rule.
   """
 
   @moduledoc since: "0.1.0"
@@ -65,6 +83,39 @@ defmodule AshJudgments.Calibration.RiskControl do
     |> Enum.sort()
     |> Enum.find(fn lam ->
       errors = Enum.count(scored, fn {score, supports?} -> score >= lam and not supports? end)
+      (errors + 1) / (n + 1) <= alpha
+    end)
+  end
+
+  @doc """
+  The lower threshold λ̂_low: the λ̂ rule with the loss reversed.
+  `scored` is the same list of `{score, gold_supports?}`; the loss is an
+  error when `score ≤ λ` and the gold IS `supports`. Returns the largest
+  observed score λ with `(Σ Lᵢ(λ) + 1)/(n + 1) ≤ α`, or nil when no
+  score meets the budget (as with `threshold/2`, including
+  `1/(n + 1) > α`).
+
+  Worked example, n = 7 and α = 0.125, so the budget allows no error
+  (`(0 + 1)/8 = 0.125`):
+
+      scored = [{0.95, true}, {0.9, true}, {0.8, false}, {0.6, true},
+                {0.3, false}, {0.2, false}, {0.1, false}]
+
+  At λ = 0.6 the yes at 0.6 would be admitted as a no (1 error, 2/8 =
+  0.25 > α); at λ = 0.3 no yes scores at or below it (1/8 ≤ α). So
+  `threshold_low(scored, 0.125) == 0.3`, and `threshold(scored, 0.125)
+  == 0.9`: the table admits yes at 0.9 or above, no at 0.3 or below, and
+  sends 0.6 and 0.8 to review.
+  """
+  def threshold_low(scored, alpha) do
+    n = length(scored)
+
+    scored
+    |> Enum.map(&elem(&1, 0))
+    |> Enum.uniq()
+    |> Enum.sort(:desc)
+    |> Enum.find(fn lam ->
+      errors = Enum.count(scored, fn {score, supports?} -> score <= lam and supports? end)
       (errors + 1) / (n + 1) <= alpha
     end)
   end

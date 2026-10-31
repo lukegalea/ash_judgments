@@ -195,6 +195,12 @@ missing dep is a structured error, never a crash:
   the family's `min_n` there is no table, and a refused proposal is still a recorded
   run (`result: :no_table`). A person certifies through
   `Banding.CertificationFragment`; publication is `ash_decisions`' lifecycle.
+- An earned table has two ranges (admit at or above λ̂, review below), or three when the
+  run also earned a lower threshold (`RiskControl.threshold_low/2`) and the family sets
+  `low_band` in `FamilyConfig`: `:admit_no` admits a confident no with `fact_value`
+  `false`, `:omit` drops it. Pass `low_band: FamilyConfig.low_band(family)` to
+  `ProposalDmn.render/2` wherever you render a proposal. A lower threshold at or above the
+  upper one is refused (`:thresholds_overlap`), never rendered.
 - `mix ash_judgments.calibrate <family>` runs the harness. The labelled pairs come from
   the host's `:calibration_input` MFA and the run is recorded through the host's
   `:calibration_store` resource; `--dry-run` records nothing.

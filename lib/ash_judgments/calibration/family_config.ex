@@ -29,6 +29,12 @@ defmodule AshJudgments.Calibration.FamilyConfig do
     which is how an operations family tunes freshness without touching
     the locked question declarations. `nil` (default) = the question's
     ttl governs.
+  - `low_band` — what the lower range of an earned band table does when
+    the run also earned a lower threshold (`RiskControl.threshold_low/2`):
+    `:admit_no` admits the confident no (the fact's value is `false`),
+    `:omit` drops it (no fact is written). `nil` (default) renders no
+    lower range: everything below the upper threshold goes to review, as
+    a two-range table. Any other value raises when the config is read.
 
   Everything is data: the verifier, the proposal trigger and the cache
   read these values — changing them is host configuration, never code.
@@ -43,8 +49,11 @@ defmodule AshJudgments.Calibration.FamilyConfig do
     min_n_per_class: nil,
     alpha: @default_alpha,
     max_age_days: 90,
-    ttl: nil
+    ttl: nil,
+    low_band: nil
   }
+
+  @low_bands [nil, :admit_no, :omit]
 
   @doc "The family's config, defaults merged under the host's overrides. Unknown families get the defaults."
   @spec fetch(atom() | String.t()) :: map()
@@ -59,8 +68,14 @@ defmodule AshJudgments.Calibration.FamilyConfig do
         _ -> %{}
       end
 
-    Map.merge(@defaults, normalize(overrides))
+    @defaults
+    |> Map.merge(normalize(overrides))
+    |> validate!(family)
   end
+
+  @doc "The family's low band: `:admit_no`, `:omit` or nil (no lower range)."
+  @spec low_band(atom() | String.t()) :: :admit_no | :omit | nil
+  def low_band(family), do: fetch(family).low_band
 
   @doc "The family's TTL override in seconds, or nil (the question's ttl governs)."
   @spec ttl(atom() | String.t()) :: pos_integer() | nil
@@ -76,6 +91,16 @@ defmodule AshJudgments.Calibration.FamilyConfig do
 
   defp config_name(name) when is_atom(name), do: Atom.to_string(name)
   defp config_name(name) when is_binary(name), do: name
+
+  defp validate!(%{low_band: low_band} = config, family) do
+    if low_band in @low_bands do
+      config
+    else
+      raise ArgumentError,
+            "the :low_band of family #{inspect(family)} must be :admit_no, :omit or nil " <>
+              "(got: #{inspect(low_band)})"
+    end
+  end
 
   defp normalize(overrides) do
     Map.new(overrides, fn {k, v} -> {k, v} end)

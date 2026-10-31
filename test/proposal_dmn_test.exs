@@ -7,7 +7,9 @@ defmodule AshJudgments.Calibration.ProposalDmnTest do
   S1-25: the proposal's DMN rendering — the golden document for a fixed
   recorded proposal, the string/atom key equivalence, the score-input
   override, the table evaluated as the bridge feeds it, and the
-  structural validation refusals.
+  structural validation refusals. S1-86: the three-range table (a lower
+  threshold and the family's low band), golden and evaluated at each
+  boundary.
   """
 
   use ExUnit.Case, async: true
@@ -172,6 +174,179 @@ defmodule AshJudgments.Calibration.ProposalDmnTest do
     test "no score, or a malformed one, matches no row", %{band: band} do
       assert {:error, _} = band.(%{})
       assert {:error, _} = band.(%{"q1__p_true" => "not a number"})
+    end
+  end
+
+  @three_proposal Map.put(@proposal, "thresholds", %{
+                    "threshold" => "0.93",
+                    "threshold_low" => "0.12"
+                  })
+
+  @golden_admit_no """
+                   <?xml version="1.0" encoding="UTF-8"?>
+                   <definitions xmlns="https://www.omg.org/spec/DMN/20230324/MODEL/"
+                                xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                                id="bands_clinic_triage_definitions"
+                                name="bands_clinic_triage"
+                                namespace="https://ash-judgments.test/bands_clinic_triage"
+                                expressionLanguage="https://www.omg.org/spec/DMN/20230324/FEEL/"
+                                typeLanguage="https://www.omg.org/spec/DMN/20230324/FEEL/">
+                     <inputData id="input_p_supports" name="p_supports">
+                       <variable id="var_p_supports" name="p_supports" typeRef="string"/>
+                     </inputData>
+                     <decision id="decision_bands_clinic_triage" name="bands_clinic_triage">
+                       <variable id="var_bands_clinic_triage" name="bands_clinic_triage"/>
+                       <decisionTable id="table_bands_clinic_triage" hitPolicy="UNIQUE" outputLabel="band">
+                         <input id="clause_score" label="Conformal score">
+                           <inputExpression id="expr_score" typeRef="number">
+                             <text>number(p_supports)</text>
+                           </inputExpression>
+                         </input>
+                         <output id="clause_band" name="band" label="band" typeRef="string"/>
+                         <output id="clause_reason_code" name="reason_code" label="reason_code" typeRef="string"/>
+                         <output id="clause_fact_value" name="fact_value" label="fact_value" typeRef="boolean"/>
+                         <rule id="rule_admit">
+                           <inputEntry id="rule_admit_0"><text>&gt;= 0.93</text></inputEntry>
+                           <outputEntry id="rule_admit_1"><text>"admit"</text></outputEntry>
+                           <outputEntry id="rule_admit_2"><text>"conformal_threshold_met"</text></outputEntry>
+                           <outputEntry id="rule_admit_3"><text>null</text></outputEntry>
+                         </rule>
+                         <rule id="rule_admit_no">
+                           <inputEntry id="rule_admit_no_0"><text>&lt;= 0.12</text></inputEntry>
+                           <outputEntry id="rule_admit_no_1"><text>"admit"</text></outputEntry>
+                           <outputEntry id="rule_admit_no_2"><text>"conformal_low_threshold_met"</text></outputEntry>
+                           <outputEntry id="rule_admit_no_3"><text>false</text></outputEntry>
+                         </rule>
+                         <rule id="rule_review">
+                           <inputEntry id="rule_review_0"><text>(0.12..0.93)</text></inputEntry>
+                           <outputEntry id="rule_review_1"><text>"review"</text></outputEntry>
+                           <outputEntry id="rule_review_2"><text>"below_conformal_threshold"</text></outputEntry>
+                           <outputEntry id="rule_review_3"><text>null</text></outputEntry>
+                         </rule>
+                       </decisionTable>
+                     </decision>
+                   </definitions>
+                   """
+                   |> String.trim_trailing("\n")
+
+  describe "the three-range table (a lower threshold and the family's low band)" do
+    test "low_band :admit_no renders the golden three-rule document" do
+      assert {:ok, xml} = ProposalDmn.render(@three_proposal, low_band: :admit_no)
+      assert xml == @golden_admit_no
+    end
+
+    test "low_band :omit renders an omit rule and no fact_value output" do
+      assert {:ok, xml} = ProposalDmn.render(@three_proposal, low_band: :omit)
+
+      assert xml =~ ~s(<rule id="rule_omit">)
+      assert xml =~ ~s(<inputEntry id="rule_omit_0"><text>&lt;= 0.12</text></inputEntry>)
+      assert xml =~ ~s(<outputEntry id="rule_omit_1"><text>"omit"</text></outputEntry>)
+      assert xml =~ ~s(<text>"conformal_low_threshold_met"</text>)
+      assert xml =~ ~s(<text>(0.12..0.93\)</text>)
+      refute xml =~ "fact_value"
+    end
+
+    test "no lower range without a low band, or without a lower threshold: the two-rule golden" do
+      assert {:ok, xml} = ProposalDmn.render(@three_proposal)
+      assert xml == @golden
+
+      assert {:ok, xml} = ProposalDmn.render(@three_proposal, low_band: nil)
+      assert xml == @golden
+
+      for low_band <- [:admit_no, :omit] do
+        assert {:ok, xml} = ProposalDmn.render(@proposal, low_band: low_band)
+        assert xml == @golden
+      end
+    end
+
+    test "a lower threshold at or above the threshold is refused, never rendered" do
+      for low <- ["0.93", "0.95"] do
+        proposal = put_in(@three_proposal, ["thresholds", "threshold_low"], low)
+
+        for low_band <- [nil, :admit_no, :omit] do
+          assert {:error, findings} = ProposalDmn.render(proposal, low_band: low_band)
+          assert Enum.any?(findings, &(&1 =~ "lower threshold must be below the threshold"))
+        end
+      end
+    end
+
+    test "a malformed lower threshold, or an unknown low band, is refused" do
+      proposal = put_in(@three_proposal, ["thresholds", "threshold_low"], "low")
+      assert {:error, findings} = ProposalDmn.render(proposal, low_band: :admit_no)
+      assert Enum.any?(findings, &(&1 =~ ~s(thresholds["threshold_low"])))
+
+      proposal = put_in(@three_proposal, ["thresholds", "threshold_low"], "-0.2")
+      assert {:error, findings} = ProposalDmn.render(proposal, low_band: :admit_no)
+      assert Enum.any?(findings, &(&1 =~ "within [0, 1]"))
+
+      assert {:error, [finding]} = ProposalDmn.render(@three_proposal, low_band: :admit_yes)
+      assert finding =~ "low_band"
+    end
+  end
+
+  # Each range at its boundaries, through the engine, fed as the bridge
+  # feeds it.
+  describe "the three-range table bands each range as intended" do
+    defp three_band(low_band) do
+      {:ok, xml} =
+        ProposalDmn.render(@three_proposal, low_band: low_band, score_input: ["q1__p_true"])
+
+      {:ok, model} = Boxic.DMN.load_xml(xml)
+      &Boxic.DMN.evaluate_with_trace(model, "bands_clinic_triage", %{"q1__p_true" => &1})
+    end
+
+    test ":admit_no admits yes at and above the threshold, no fact value of its own" do
+      band = three_band(:admit_no)
+
+      for score <- ["0.93", "1"] do
+        assert {:ok,
+                %{
+                  "band" => "admit",
+                  "reason_code" => "conformal_threshold_met",
+                  "fact_value" => nil
+                }, %{matched_rules: ["rule_admit"]}} = band.(score)
+      end
+    end
+
+    test ":admit_no admits a confident no at and below the lower threshold as false" do
+      band = three_band(:admit_no)
+
+      for score <- ["0.12", "0.0"] do
+        assert {:ok,
+                %{
+                  "band" => "admit",
+                  "reason_code" => "conformal_low_threshold_met",
+                  "fact_value" => false
+                }, %{matched_rules: ["rule_admit_no"]}} = band.(score)
+      end
+    end
+
+    test "between the thresholds is review, on both sides of the open range" do
+      for low_band <- [:admit_no, :omit] do
+        band = three_band(low_band)
+
+        for score <- ["0.1201", "0.5", "0.9299"] do
+          assert {:ok, %{"band" => "review", "reason_code" => "below_conformal_threshold"},
+                  %{matched_rules: ["rule_review"]}} = band.(score)
+        end
+      end
+    end
+
+    test ":omit drops a confident no at and below the lower threshold" do
+      band = three_band(:omit)
+
+      for score <- ["0.12", "0.0"] do
+        assert {:ok, outputs, %{matched_rules: ["rule_omit"]}} = band.(score)
+        assert outputs == %{"band" => "omit", "reason_code" => "conformal_low_threshold_met"}
+      end
+
+      assert {:ok, %{"band" => "admit"}, %{matched_rules: ["rule_admit"]}} = band.("0.93")
+    end
+
+    test "no score still matches no row" do
+      band = three_band(:admit_no)
+      assert {:error, _} = band.(nil)
+      assert {:error, _} = band.("not a number")
     end
   end
 

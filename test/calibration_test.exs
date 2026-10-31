@@ -313,6 +313,39 @@ defmodule AshJudgments.CalibrationTest do
       assert RiskControl.threshold(scored, 0.19) == nil
     end
 
+    test "the lower rule picks the largest score that admits no yes as a no" do
+      scored = [
+        {0.95, true},
+        {0.9, true},
+        {0.8, false},
+        {0.6, true},
+        {0.3, false},
+        {0.2, false},
+        {0.1, false}
+      ]
+
+      # n = 7, alpha = 0.125: the budget allows no error ((0 + 1)/8).
+      # lam=0.6 would admit the yes at 0.6 as a no (2/8 > alpha); at
+      # lam=0.3 no yes scores at or below it (1/8).
+      assert RiskControl.threshold_low(scored, 0.125) == 0.3
+      # The upper rule over the same pairs: three ranges, 0.6 and 0.8 in review.
+      assert RiskControl.threshold(scored, 0.125) == 0.9
+
+      # A looser budget allows one error: lam=0.8 admits the yes at 0.6
+      # as a no (2/8 = 0.25), lam=0.9 would admit two (3/8).
+      assert RiskControl.threshold_low(scored, 0.25) == 0.8
+    end
+
+    test "the lower rule is nil when no score meets the budget" do
+      scored = [{0.9, true}, {0.8, true}, {0.1, false}]
+
+      # 1/4 > 0.2 at every lam, whatever the errors: the bound doing its job.
+      assert RiskControl.threshold_low(scored, 0.2) == nil
+      # Every score is a yes: any lam admits at least one yes as a no.
+      assert RiskControl.threshold_low([{0.9, true}, {0.8, true}], 0.4) == nil
+      assert RiskControl.threshold_low([], 0.5) == nil
+    end
+
     test "the audit alarm at m=200, alpha0=0.02 is 8" do
       assert RiskControl.alarm_threshold(200, 0.02) == 8
     end
@@ -361,6 +394,37 @@ defmodule AshJudgments.CalibrationTest do
 
       assert finding.finding == :n_per_class_below_min
       assert finding.actual["urgent"] == 2
+    end
+
+    test "a lower threshold rides the proposal's thresholds" do
+      run =
+        record_run(
+          n: 62,
+          conformal_thresholds: %{"0.016" => %{"threshold" => "0.93", "threshold_low" => "0.12"}}
+        )
+
+      assert {:ok, proposal} =
+               Calibration.propose_band_table(run, %{question_hash: @question_hash})
+
+      assert proposal.thresholds == %{"threshold" => "0.93", "threshold_low" => "0.12"}
+    end
+
+    test "a lower threshold at or above the threshold refuses: ranges that overlap" do
+      for low <- ["0.93", "0.95"] do
+        run =
+          record_run(
+            n: 62,
+            conformal_thresholds: %{"0.016" => %{"threshold" => "0.93", "threshold_low" => low}}
+          )
+
+        assert {:error, [finding]} =
+                 Calibration.propose_band_table(run, %{question_hash: @question_hash})
+
+        assert finding.finding == :thresholds_overlap
+        assert finding.family == "clinic_triage"
+        assert finding.threshold == "0.93"
+        assert finding.threshold_low == low
+      end
     end
 
     test "a run whose metrics miss its own pass bar proposes nothing" do
@@ -439,6 +503,27 @@ defmodule AshJudgments.CalibrationTest do
       assert Enum.any?(findings, &(&1.finding == :eval_set_hash_missing))
     end
 
+    test "a run whose thresholds overlap refuses" do
+      run =
+        record_run(
+          n: 62,
+          conformal_thresholds: %{"0.016" => %{"threshold" => "0.5", "threshold_low" => "0.6"}}
+        )
+
+      assert {:error, [finding]} =
+               Calibration.verify(definition(), %{status: :certified}, run)
+
+      assert finding.finding == :thresholds_overlap
+
+      run =
+        record_run(
+          n: 62,
+          conformal_thresholds: %{"0.016" => %{"threshold" => "0.93", "threshold_low" => "0.12"}}
+        )
+
+      assert :ok = Calibration.verify(definition(), %{status: :certified}, run)
+    end
+
     test "a run older than max_age_days refuses" do
       run = record_run(n: 62)
 
@@ -480,6 +565,33 @@ defmodule AshJudgments.CalibrationTest do
       assert FamilyConfig.fetch(:clinic_triage).alpha == 0.016
       # Other families are unaffected.
       assert FamilyConfig.fetch(:other).ttl == nil
+    end
+
+    test "low_band defaults to nil and takes :admit_no or :omit" do
+      assert FamilyConfig.fetch(:some_unknown_family).low_band == nil
+      assert FamilyConfig.low_band(:some_unknown_family) == nil
+
+      Application.put_env(:ash_judgments, :families, %{
+        standards_commenting: %{low_band: :admit_no},
+        mdm_match: %{low_band: :omit}
+      })
+
+      assert FamilyConfig.low_band(:standards_commenting) == :admit_no
+      assert FamilyConfig.low_band("mdm_match") == :omit
+    end
+
+    test "any other low_band raises when the config is read" do
+      Application.put_env(:ash_judgments, :families, %{clinic_triage: %{low_band: :admit_yes}})
+
+      assert_raise ArgumentError, ~r/low_band of family :clinic_triage/, fn ->
+        FamilyConfig.fetch(:clinic_triage)
+      end
+
+      Application.put_env(:ash_judgments, :families, %{clinic_triage: %{low_band: "omit"}})
+
+      assert_raise ArgumentError, ~r/must be :admit_no, :omit or nil/, fn ->
+        FamilyConfig.low_band(:clinic_triage)
+      end
     end
 
     test "the override changes cache freshness — a within-TTL record misses when ttl is 0" do
