@@ -216,7 +216,18 @@ missing dep is a structured error, never a crash:
   `:record_verdict` (run `AshJudgments.HumanVerdict.FromBanding`), `:certify_and_publish` (yours,
   since publication is your decisions store), and `:revoke`.
 - A read that crosses two of your resources (`:awaiting_verdict`, `:awaiting_certification`) is
-  yours to declare, naming your resource literally in `exists/2`.
+  yours to declare. For `:awaiting_verdict` use the package's filter, `prepare
+  {AshJudgments.HumanVerdict.AwaitingVerdict, verdict_resource: …, judgment_resource: …}`: it
+  lists one banding per subject, question and unchanged state, and `FromBanding` settles the
+  others with the same verdict. Elsewhere, name your resource literally in `exists/2`.
+- `:record_verdict` takes `record_id`, `answer` and `why`. Declare `answer` as `:atom` with
+  `constraints: [one_of: [:yes, :no]]` for yes/no questions, so the prompt is a Yes/No picker.
+- The verdicts surface shows the banding fragment's `:subject`, `:question_text`, `:lean` and
+  `:judged_excerpt` (`:judged_text` in the detail). Set `config :ash_judgments, :review_source`
+  to a module implementing `AshJudgments.Banding.ReviewSource`: it opens the sealed state as
+  the actor through your own key handling, and returns the DMN of the band-table version a
+  banding recorded (never the one published now). Never decrypt in the package or with
+  `authorize?: false`.
 
 ## Telemetry
 

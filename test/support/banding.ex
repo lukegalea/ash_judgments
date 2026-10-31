@@ -28,25 +28,73 @@ defmodule AshJudgments.Test.Banding do
   # The AshJudgments.A2ui.Verdicts contract, as a host declares it.
   actions do
     read :awaiting_verdict do
-      filter expr(
-               band == :review and
-                 not exists(
-                   AshJudgments.Test.HumanVerdict,
-                   judgment_id in parent(observation_ids)
-                 )
-             )
+      prepare {AshJudgments.HumanVerdict.AwaitingVerdict,
+               verdict_resource: AshJudgments.Test.HumanVerdict,
+               judgment_resource: AshJudgments.Test.Judgment}
+
+      pagination offset?: true, keyset?: true, required?: false
     end
 
     action :record_verdict, :map do
       argument :record_id, :uuid, allow_nil?: false
-      argument :value, :string, allow_nil?: false
-      argument :reason, :string
+      argument :answer, :atom, allow_nil?: false, constraints: [one_of: [:yes, :no]]
+      argument :why, :string
+
+      run {AshJudgments.HumanVerdict.FromBanding,
+           verdict_resource: AshJudgments.Test.HumanVerdict,
+           judgment_resource: AshJudgments.Test.Judgment}
+    end
+
+    # A host whose verdict values are free text (choice questions).
+    action :record_text_verdict, :map do
+      argument :record_id, :uuid, allow_nil?: false
+      argument :answer, :string, allow_nil?: false
+      argument :why, :string
 
       run {AshJudgments.HumanVerdict.FromBanding,
            verdict_resource: AshJudgments.Test.HumanVerdict,
            judgment_resource: AshJudgments.Test.Judgment}
     end
   end
+end
+
+defmodule AshJudgments.Test.ReviewSource do
+  @moduledoc """
+  The test host's review source (AshJudgments.Banding.ReviewSource). Its
+  "sealing" is a reversible test encoding standing in for the host's own
+  encryption, and it opens nothing without an actor. Band tables are read
+  per definition version from `config :ash_judgments, :test_band_tables`,
+  which the tests fill.
+  """
+
+  @behaviour AshJudgments.Banding.ReviewSource
+
+  @doc "The test seal: what a host's encryption would produce."
+  def seal(text), do: "sealed:" <> Base.encode64(text)
+
+  @impl true
+  def open_state(observations, opts) do
+    if opts[:actor] do
+      Map.new(observations, fn observation ->
+        {observation.id, open(observation.state_ciphertext)}
+      end)
+    else
+      %{}
+    end
+  end
+
+  @impl true
+  def band_table(banding, _opts) do
+    version = banding.band_table["definition_version"]
+
+    case Application.get_env(:ash_judgments, :test_band_tables, %{}) do
+      %{^version => xml} -> {:ok, xml}
+      _ -> :error
+    end
+  end
+
+  defp open("sealed:" <> encoded), do: Base.decode64!(encoded)
+  defp open(_), do: nil
 end
 
 defmodule AshJudgments.Test.Certification do

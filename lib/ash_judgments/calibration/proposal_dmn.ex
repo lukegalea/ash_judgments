@@ -130,6 +130,43 @@ defmodule AshJudgments.Calibration.ProposalDmn do
     {:error, ["the proposal must be a map of the recorded proposed_band_table shape"]}
   end
 
+  @doc """
+  Reads the thresholds back out of a band table this module rendered:
+  `{:ok, %{threshold: "0.77", threshold_low: "0.12" | nil, low_band:
+  :admit_no | :omit | nil}}`, or `:error` for a document that is not one
+  of its tables. Pure; a host reading what a recorded banding's table
+  version held passes that version's DMN text here (see
+  `AshJudgments.Banding.ReviewSource`).
+  """
+  @spec thresholds(String.t()) :: {:ok, map()} | :error
+  def thresholds(xml) when is_binary(xml) do
+    case rule_entry(xml, "rule_admit", "&gt;= ") do
+      nil ->
+        :error
+
+      threshold ->
+        {low, low_band} =
+          case rule_entry(xml, "rule_admit_no", "&lt;= ") do
+            nil -> {rule_entry(xml, "rule_omit", "&lt;= "), :omit}
+            low -> {low, :admit_no}
+          end
+
+        {:ok, %{threshold: threshold, threshold_low: low, low_band: low && low_band}}
+    end
+  end
+
+  def thresholds(_xml), do: :error
+
+  defp rule_entry(xml, rule_id, operator) do
+    pattern =
+      ~r/<rule id="#{rule_id}">\s*<inputEntry id="#{rule_id}_0"><text>#{operator}([0-9.]+)<\/text>/
+
+    case Regex.run(pattern, xml) do
+      [_, value] -> value
+      nil -> nil
+    end
+  end
+
   ## Structural validation
 
   defp low_band_finding(low_band) when low_band in [nil, :admit_no, :omit], do: nil

@@ -44,7 +44,9 @@ defmodule AshJudgments.Banding.Display do
     end
   end
 
-  defp questions(inputs) do
+  @doc false
+  # The questions whose answer is present in a banding's inputs, sorted.
+  def questions(inputs) do
     for {key, "true"} <- inputs, String.ends_with?(key, "__present"), into: [] do
       String.replace_suffix(key, "__present", "")
     end

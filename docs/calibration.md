@@ -60,6 +60,12 @@ tolerable-errors reading, the λ̂ quantile rule
 (smallest k with `P(Binomial(m, α₀) ≥ k) ≤ 0.05` — 8 at m = 200,
 α₀ = 0.02). The golden tests assert the design's worked numbers.
 
+The lower threshold is the same rule with the loss reversed, over the
+same n and α: an error is a score at or below λ whose gold is yes, and
+`λ̂_low = sup {λ : (Σ Lᵢ(λ) + 1)/(n+1) ≤ α}` over the observed scores
+(`RiskControl.threshold_low/2`, nil when none qualifies). It is this
+package's own; the clinic-demo reference has only the upper rule.
+
 ## The proposal trigger and the publish-time verifier
 
 `Calibration.propose_band_table/3` — the n-threshold trigger: a run at
@@ -69,7 +75,8 @@ thresholds come from the run's recorded conformal thresholds at the
 family's α. **Thresholds are earned, never hand-set.** A refusal
 returns structured findings (`:n_below_min` naming family, required n
 and the digest; `:n_per_class_below_min`;
-`:metrics_miss_pass_bar`) and writes nothing. Proposals are recorded on
+`:metrics_miss_pass_bar`; `:thresholds_overlap` when a lower threshold
+is at or above the upper one) and writes nothing. Proposals are recorded on
 the run and feed S1-62's review queue; certification and activation
 are people's acts.
 
@@ -77,8 +84,8 @@ are people's acts.
 publish next to ash_decisions' overlap/completeness verifiers: a
 PERSON's certification (status `:certified`), a run with n ≥ min_n and
 per-class ≥ the floor, the SAME model digest/runtime version as the
-definition, the same region, an eval_set_hash recorded, and a run age
-≤ the family's `max_age_days`. Refusals name the family, the required
+definition, the same region, an eval_set_hash recorded, a run age
+≤ the family's `max_age_days`, and thresholds that do not overlap. Refusals name the family, the required
 n and the pinned digest (AC-3's shape).
 
 ## Family config
@@ -92,6 +99,9 @@ coverage ≥ 80%), `max_age_days` (90), and the **family TTL override**
 per-question ttl for cache freshness — an operations family tunes
 freshness in host config without touching the locked question
 declarations. The judge's cache lookups read the override first.
+`low_band` (nil) says what a table's lower range does when the run
+earned a lower threshold: `:admit_no` admits the confident no with
+`fact_value` `false`, `:omit` drops it, nil renders no lower range.
 
 ## Consumers
 
@@ -107,9 +117,12 @@ declarations. The judge's cache lookups read the override first.
   recorded `:no_table` run; a refusal never writes the proposal. The
   DMN rendering (`Calibration.ProposalDmn.render/2`) turns a recorded
   `proposed_band_table` into the publishable DMN XML document in the
-  ash_decisions decision-table shape: a two-band UNIQUE table over the
-  conformal score (`admit` at `≥ λ̂`, `review` below) with **no default
-  rule** — an empty `matched_rule_ids` stays a refusal (ADR 0041).
+  ash_decisions decision-table shape: a UNIQUE table over the
+  conformal score with two ranges (`admit` at `≥ λ̂`, `review` below),
+  or three when the proposal carries a lower threshold and the family
+  sets `low_band` (`admit` at `≥ λ̂`; the low band at `≤ λ̂_low`;
+  `review` between), with **no default rule** — an empty
+  `matched_rule_ids` stays a refusal (ADR 0041).
   Rendering is pure and dependency-free; review, certification and
   publication stay the host's and ash_decisions' acts.
 
@@ -129,7 +142,7 @@ The input carries the `answer_kind`, the `Metrics` pair shapes, the
 `RiskControl` scored pairs (`{score, gold_supports?}`), and the run
 key's identity fields (question hashes, model version/digest, runtime
 version, `eval_set_hash`, region). The task computes the §8.1 metrics
-object, the conformal threshold at the family's α, records the run
+object, the conformal thresholds at the family's α, records the run
 with the proposal (or the `:no_table` negative result) on it, and
 prints the DMN rendering. `--dry-run` prints all of it and records
 nothing; a missing seam is an honest refusal, never a fabrication.
