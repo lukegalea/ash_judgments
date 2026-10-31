@@ -16,6 +16,7 @@ defmodule AshJudgments.LedgerTest do
   @moduletag :db
 
   alias AshJudgments.Ledger
+  alias AshJudgments.Ledger.Record
   alias AshJudgments.Registry.Canonical
 
   setup do
@@ -411,6 +412,72 @@ defmodule AshJudgments.LedgerTest do
         assert actual == expected,
                "column #{inspect(key)} differs after replay: #{inspect(expected)} != #{inspect(actual)}"
       end
+    end
+  end
+
+  describe "agent-run lineage" do
+    @lineage %{
+      run_id: "run-7",
+      step_id: "step-3",
+      tool_call_id: "call-9",
+      invocation_id: "inv-1",
+      release_manifest: "sha256:" <> String.duplicate("f", 64)
+    }
+
+    test "a row without lineage keeps nil lineage and its pre-lineage record_hash" do
+      judgment = record!()
+
+      assert is_nil(judgment.run_id)
+      assert is_nil(judgment.step_id)
+      assert is_nil(judgment.tool_call_id)
+      assert is_nil(judgment.invocation_id)
+      assert is_nil(judgment.release_manifest)
+
+      # Pinned: this digest was produced before the lineage fields existed.
+      assert judgment.record_hash ==
+               "sha256:20de5dfd9fe20aedee8d9e64b98cedfd7d6c2d82c25b3236dd8cf670d922ac08"
+    end
+
+    test "lineage is stored and changes the record_hash" do
+      plain = record!()
+      AshJudgments.TestRepo.query!("DELETE FROM test_judgments")
+      judgment = record!(Map.to_list(@lineage))
+
+      assert judgment.run_id == "run-7"
+      assert judgment.release_manifest == @lineage.release_manifest
+      refute judgment.record_hash == plain.record_hash
+    end
+
+    test "the observation inputs take lineage from the judge context's judgments map" do
+      question = %{
+        name: :deadline_extraction,
+        version: 1,
+        question_id: "judgment:v0:Probe#judgments/deadline_extraction",
+        question_hash: "sha256:" <> String.duplicate("d", 64),
+        question_version: 1,
+        family: :contract_extraction,
+        type: AshJudgments.Evaluate.Extraction,
+        constraints: [of: :string, source_enum: ["contract/§4"]],
+        profile: :test_local,
+        state_shape: nil,
+        pii: :none,
+        record: :must,
+        pin: :required,
+        instructions: "extract the deadline"
+      }
+
+      answer = %AshJudgments.Evaluate.Extraction{status: :found, value: "x", source_ids: []}
+      timing = %{state: %{"t" => "x"}, latency_us: 5, mode: :live, key_inputs: %{}}
+      build = &Record.observation_inputs_for_test(question, answer, &1, timing)
+
+      with_lineage = build.(%{judgments: Map.put(@lineage, :run_id, 42)})
+      assert with_lineage.run_id == "42"
+      assert with_lineage.step_id == "step-3"
+      assert with_lineage.release_manifest == @lineage.release_manifest
+
+      without = build.(%{judgments: %{}})
+      refute Map.has_key?(without, :run_id)
+      refute Map.has_key?(without, :invocation_id)
     end
   end
 end
