@@ -194,6 +194,18 @@ defmodule AshJudgments.Ledger.Fragment do
 
     attribute :correlation_id, :uuid, public?: true
 
+    ## Agent-run lineage — optional, envelope class, nil unless the judge
+    ## context's `judgments` map carries it. Part of record_hash only when
+    ## non-nil, so a row without lineage hashes exactly as before.
+    attribute :run_id, :string, public?: true
+    attribute :step_id, :string, public?: true
+    attribute :tool_call_id, :string, public?: true
+    attribute :invocation_id, :string, public?: true
+
+    attribute :release_manifest, :string,
+      public?: true,
+      description: "The digest or reference of the release manifest the calling run was under."
+
     ## Envelope (§5.2) — the provenance-envelope embed (AST-9). Placeholder
     ## until that struct exists; hosts that fill it pass the map.
     attribute :envelope, :map, public?: false
@@ -244,6 +256,11 @@ defmodule AshJudgments.Ledger.Fragment do
         :shadow_of,
         :mode,
         :correlation_id,
+        :run_id,
+        :step_id,
+        :tool_call_id,
+        :invocation_id,
+        :release_manifest,
         :envelope,
         :valid_until
       ]
@@ -416,6 +433,11 @@ defmodule AshJudgments.Ledger.Changes.DeriveRecord do
           mode: Ash.Changeset.get_attribute(changeset, :mode),
           region: Atom.to_string(region),
           correlation_id: Ash.Changeset.get_attribute(changeset, :correlation_id),
+          run_id: Ash.Changeset.get_attribute(changeset, :run_id),
+          step_id: Ash.Changeset.get_attribute(changeset, :step_id),
+          tool_call_id: Ash.Changeset.get_attribute(changeset, :tool_call_id),
+          invocation_id: Ash.Changeset.get_attribute(changeset, :invocation_id),
+          release_manifest: Ash.Changeset.get_attribute(changeset, :release_manifest),
           valid_until: Ash.Changeset.get_attribute(changeset, :valid_until)
         })
 

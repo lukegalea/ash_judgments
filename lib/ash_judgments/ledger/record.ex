@@ -137,6 +137,18 @@ defmodule AshJudgments.Ledger.Record do
       correlation_id: judge_context[:correlation_id],
       valid_until: refs[:valid_until]
     }
+    |> Map.merge(lineage(refs))
+  end
+
+  @lineage_keys [:run_id, :step_id, :tool_call_id, :invocation_id, :release_manifest]
+
+  # Agent-run lineage from the judge context's `judgments` map, as strings.
+  # Only present keys are passed, so a host ledger without the lineage
+  # columns keeps working.
+  defp lineage(refs) do
+    for key <- @lineage_keys, value = refs[key], not is_nil(value), into: %{} do
+      {key, to_string(value)}
+    end
   end
 
   defp subject(refs, key) when is_map(refs) do
