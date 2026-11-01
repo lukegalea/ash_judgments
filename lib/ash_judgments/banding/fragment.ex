@@ -100,7 +100,7 @@ defmodule AshJudgments.Banding.Fragment do
       allow_nil?: false,
       public?: true,
       description:
-        "The flattened DMN inputs (Bridge.Dmn.inputs/2 output): decimal-string probabilities, family, risk tier, jurisdiction. Envelope-class."
+        "The flattened DMN inputs (Bridge.Dmn.inputs/2 output): decimal-string probabilities, family, severity tier, jurisdiction. Envelope-class."
 
     attribute :mode, :atom,
       allow_nil?: false,

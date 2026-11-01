@@ -296,7 +296,13 @@ defmodule AshJudgments.Registry.Transformers do
       returns: question.type,
       constraints: return_constraints(question),
       arguments: [
-        Builder.build_action_argument(:input, :map, allow_nil?: false, public?: true)
+        Builder.build_action_argument(:input, :map, allow_nil?: false, public?: true),
+        Builder.build_action_argument(:invocation_id, :string,
+          allow_nil?: true,
+          public?: true,
+          description:
+            "Optional key of the invocation this judgment runs for; the ledger row records it as `invocation_id`"
+        )
       ],
       run: {AshJudgments.Registry.Judge, [question: question.name]}
     )
@@ -309,7 +315,13 @@ defmodule AshJudgments.Registry.Transformers do
           " (BPMN signals: a STRING-KEYED, SCALAR-VALUED map — the judgment id is the token's join back to the ledger row)",
       returns: :map,
       arguments: [
-        Builder.build_action_argument(:input, :map, allow_nil?: false, public?: true)
+        Builder.build_action_argument(:input, :map, allow_nil?: false, public?: true),
+        Builder.build_action_argument(:invocation_id, :string,
+          allow_nil?: true,
+          public?: true,
+          description:
+            "Optional key of the invocation this judgment runs for; the ledger row records it as `invocation_id`"
+        )
       ],
       run: {AshJudgments.Registry.Judge.Signals, [question: question.name]}
     )
@@ -333,6 +345,12 @@ defmodule AshJudgments.Registry.Transformers do
           public?: true,
           description:
             "One runtime question per element: a map with `instructions` (and optional `criteria`), answered in order"
+        ),
+        Builder.build_action_argument(:invocation_id, :string,
+          allow_nil?: true,
+          public?: true,
+          description:
+            "Optional key of the invocation this judgment runs for; the ledger row records it as `invocation_id`"
         )
       ],
       run: {AshJudgments.Registry.Judge, [question: question.name, matrix?: true]}

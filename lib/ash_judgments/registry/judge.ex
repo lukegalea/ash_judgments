@@ -54,11 +54,23 @@ defmodule AshJudgments.Registry.Judge do
   def run(input, opts, context) do
     # The action context as a plain map (`input.context`) — the
     # Implementation.Context struct has no Access behaviour.
-    ctx = input.context
+    ctx = with_invocation(input.context, input)
 
     case judge_and_record(question_for(input.resource, opts), input, ctx, context, opts) do
       {:ok, answer, _judgment_ids} -> {:ok, answer}
       {:error, error, _partial} -> {:error, error}
+    end
+  end
+
+  @doc """
+  The action context with the action's optional `invocation_id` argument recorded under
+  `judgments.invocation_id`, where the ledger reads its lineage. An argument that is absent
+  leaves the context untouched, so a key a host already put in the context still wins.
+  """
+  def with_invocation(ctx, input) do
+    case Ash.ActionInput.get_argument(input, :invocation_id) do
+      nil -> ctx
+      key -> Map.update(ctx, :judgments, %{invocation_id: key}, &Map.put(&1, :invocation_id, key))
     end
   end
 

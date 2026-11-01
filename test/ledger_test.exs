@@ -479,5 +479,19 @@ defmodule AshJudgments.LedgerTest do
       refute Map.has_key?(without, :run_id)
       refute Map.has_key?(without, :invocation_id)
     end
+
+    test "the judge actions take an invocation_id argument and the ledger row records it" do
+      Application.put_env(:ash_judgments, :ledger, AshJudgments.Test.Judgment)
+      put_test_env(%{"JUDGE_BASE_URL" => "http://127.0.0.1:11435", "JUDGE_API_KEY" => "local"})
+
+      AshJudgments.Test.Note
+      |> Ash.ActionInput.for_action(:judge_notes_follow_up, %{
+        "input" => %{"text" => "synthetic invocation text", "patient_id" => "P-1"},
+        "invocation_id" => "inv-42"
+      })
+      |> Ash.run_action!(context: %{judgments: %{req_llm: AshJudgments.Test.FakeReqLLM}})
+
+      assert [%{invocation_id: "inv-42"}] = Ash.read!(AshJudgments.Test.Judgment)
+    end
   end
 end

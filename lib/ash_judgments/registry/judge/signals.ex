@@ -52,7 +52,8 @@ defmodule AshJudgments.Registry.Judge.Signals do
     judge_input =
       input.resource
       |> Ash.ActionInput.for_action(judge_action, %{
-        "input" => Ash.ActionInput.get_argument(input, :input)
+        "input" => Ash.ActionInput.get_argument(input, :input),
+        "invocation_id" => Ash.ActionInput.get_argument(input, :invocation_id)
       })
       |> Map.replace!(:tenant, input.tenant)
       |> Map.replace!(:context, input.context)
@@ -60,7 +61,7 @@ defmodule AshJudgments.Registry.Judge.Signals do
     case AshJudgments.Registry.Judge.judge_and_record(
            question,
            judge_input,
-           input.context,
+           AshJudgments.Registry.Judge.with_invocation(input.context, input),
            context,
            opts
          ) do
