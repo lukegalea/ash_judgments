@@ -4,7 +4,7 @@
 
 defmodule AshJudgments.Bridge.Bpmn do
   @moduledoc """
-  The BPMN bridge — **ticket AST-94** (CORE-BRIDGE-BPMN).
+  The BPMN bridge.
 
   The `ash:call` service task binds to a domain callables allowlist and runs
   through `Ash.run_action`, so an evaluate action can be a callable with no
@@ -15,18 +15,10 @@ defmodule AshJudgments.Bridge.Bpmn do
   (`"<q>_p"`, `"<q>_value"`, `"<q>_confidence"`, `"<q>_judgment_id"`). The
   token carries promoted scalars; the ledger row is the full record.
 
-  ## Scope (AST-94)
-
-  - Generated signal callables and the documented `promote` snippet for the
-    BPMN XML.
-  - An example standing-evaluation process fixture (timer/message start →
-    judge-signals call → band-table business rule task → gateway on band →
-    human review lane → end).
-  - An integration test running the fixture through the `ash_bpmn`
-    interpreter in the test support app.
-
-  Requires the optional `ash_bpmn` dependency. TODO(AST-94): the feature
-  logic; this stub carries only the availability contract.
+  Requires the optional `ash_bpmn` dependency; `available?/0` reports whether it is
+  present. The generated callables take an optional `invocation_id` argument, which the
+  ledger row records, so the token's judgment id and the invocation that asked for it
+  join in both directions.
   """
 
   @doc """

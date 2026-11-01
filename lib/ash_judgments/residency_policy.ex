@@ -9,7 +9,7 @@ defmodule AshJudgments.ResidencyPolicy do
   family?
 
       @impl AshJudgments.ResidencyPolicy
-      def allow?(tenant, :sub_processor, :coi), do: Tenant.opted_in?(tenant, :sub_processor)
+      def allow?(tenant, :sub_processor, :triage), do: Tenant.opted_in?(tenant, :sub_processor)
       def allow?(_tenant, :in_cluster, _family), do: true
       def allow?(_tenant, :sub_processor, _family), do: false
 
