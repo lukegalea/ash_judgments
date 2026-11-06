@@ -10,6 +10,10 @@ See [Conventional Commits](https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [Unreleased]
+
+- Requires Elixir 1.20 or later.
+
 ## [0.3.3] (2026-10-31)
 
 ### Features:
