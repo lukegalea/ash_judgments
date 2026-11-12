@@ -111,7 +111,7 @@ defmodule AshJudgments.MixProject do
       {:ash_a2ui, github: "lukegalea/ash_a2ui", optional: true},
       {:ash_events,
        github: "lukegalea/ash_events",
-       branch: "temporal-as-of-support-0.7",
+       branch: "main-no-rollback",
        optional: true,
        override: true},
       {:opentelemetry_ash, "~> 0.1", optional: true},
