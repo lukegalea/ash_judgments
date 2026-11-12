@@ -19,7 +19,6 @@ defmodule AshJudgments.Test.Fact do
 
   events do
     event_log(AshJudgments.Test.EventLog)
-    create_timestamp :recorded_at
   end
 
   postgres do

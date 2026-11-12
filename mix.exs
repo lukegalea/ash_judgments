@@ -110,10 +110,7 @@ defmodule AshJudgments.MixProject do
       # keeps every record and action, and binds no surface.
       {:ash_a2ui, github: "lukegalea/ash_a2ui", optional: true},
       {:ash_events,
-       github: "lukegalea/ash_events",
-       branch: "temporal-as-of-support-0.7",
-       optional: true,
-       override: true},
+       github: "lukegalea/ash_events", branch: "main-no-rollback", optional: true, override: true},
       {:opentelemetry_ash, "~> 0.1", optional: true},
 
       # The test support app persists its resources on a real PostgreSQL
