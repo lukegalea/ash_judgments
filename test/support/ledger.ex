@@ -16,6 +16,7 @@ defmodule AshJudgments.Test.EventLog do
 
   event_log do
     clear_records_for_replay(AshJudgments.Test.ClearLedger)
+    record_as_of?(true)
     primary_key_type(Ash.Type.UUIDv7)
   end
 
