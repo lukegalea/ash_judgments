@@ -30,7 +30,6 @@ defmodule AshJudgments.A2ui.Calibration do
         surface_id unquote(surface_id)
         title unquote(title)
         record_label "calibration run"
-        spec_version "1.0"
 
         query :runs do
           search_fields [:family]

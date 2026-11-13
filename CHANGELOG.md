@@ -13,6 +13,7 @@ See [Conventional Commits](https://conventionalcommits.org) for commit guideline
 ## [Unreleased]
 
 - Requires Elixir 1.20 or later.
+- Moves to ash_a2ui 1.0: the removed `spec_version` option is dropped from the A2UI surfaces.
 
 ## [0.3.3] (2026-10-31)
 

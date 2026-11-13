@@ -44,7 +44,6 @@ defmodule AshJudgments.A2ui.BandTables do
         surface_id unquote(surface_id)
         title unquote(title)
         record_label "proposed band table"
-        spec_version "1.0"
 
         query :proposals do
           sortable [:family, :finished_at]

@@ -31,7 +31,6 @@ defmodule AshJudgments.A2ui.Facts do
         surface_id unquote(surface_id)
         title unquote(title)
         record_label "fact"
-        spec_version "1.0"
 
         query :facts do
           search_fields [:subject_id, :predicate]

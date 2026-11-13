@@ -83,7 +83,6 @@ defmodule AshJudgments.A2ui.Verdicts do
         surface_id unquote(surface_id)
         title unquote(title)
         record_label "judgment"
-        spec_version "1.0"
 
         context :judgment do
           resource unquote(resource)
