@@ -14,6 +14,9 @@ See [Conventional Commits](https://conventionalcommits.org) for commit guideline
 
 - Requires Elixir 1.20 or later.
 - Moves to ash_a2ui 1.0: the removed `spec_version` option is dropped from the A2UI surfaces.
+- `AshJudgments.Facts.Replay`: reads a facts resource's decisions back out of its AshEvents
+  log at each write's `as_of` (`:materialise`, `:revise`, `:truncate`, `:supersede`) and
+  replays them through the materialiser. Hosts had each carried a copy.
 
 ## [0.3.3] (2026-10-31)
 
