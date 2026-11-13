@@ -249,12 +249,27 @@ defmodule AshJudgments.A2uiTest do
                AshA2ui.ActionHandler.handle(
                  A2ui.VerdictsUI,
                  %{
-                   "name" => "invoke",
-                   "context" => %{
-                     "action" => "record_verdict",
-                     "recordId" => banding.id,
-                     "component" => "table",
-                     "values" => %{"answer" => "no", "why" => "The comment narrates a change."}
+                   "version" => "1.0",
+                   "callAgentFunction" => %{
+                     "surfaceId" => "verdicts",
+                     "functionCallId" => "call-1",
+                     "callFunction" => %{
+                       "@call" => "ashAction",
+                       "catalogId" => AshA2ui.Encoder.ash_catalog_id(),
+                       "args" => %{
+                         "name" => "invoke",
+                         "sourceComponentId" => "table",
+                         "context" => %{
+                           "action" => "record_verdict",
+                           "recordId" => banding.id,
+                           "component" => "table",
+                           "values" => %{
+                             "answer" => "no",
+                             "why" => "The comment narrates a change."
+                           }
+                         }
+                       }
+                     }
                    }
                  },
                  actor: @person

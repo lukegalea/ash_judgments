@@ -41,7 +41,6 @@ defmodule AshJudgments.A2ui.Certifications do
         surface_id unquote(surface_id)
         title unquote(title)
         record_label "certification"
-        spec_version "1.0"
 
         query :certified do
           sortable [:family, :certified_at]
