@@ -77,7 +77,7 @@ action :triage, AshAi.Actions.Result do
 end
 ```
 
-A question-shaped map — `%{profile: :laya_local, family: :coi}` —
+A question-shaped map — `%{profile: :laya_local, family: :invoice}` —
 resolves through the registry and carries the family to the policy and
 the pinning rules.
 

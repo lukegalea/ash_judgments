@@ -235,11 +235,11 @@ defmodule AshJudgments.ProfileTest do
       # a denial is structurally zero calls. The contract suite is where
       # real calls happen, and it never sees this error path.
       assert {:error, %AshJudgments.Profile.ResidencyDenied{} = denied} =
-               AshJudgments.Profile.model_spec(hosted, %{}, %{tenant: :acme, family: :coi})
+               AshJudgments.Profile.model_spec(hosted, %{}, %{tenant: :acme, family: :invoice})
 
       assert denied.profile_name == :hosted
       assert denied.residency == :sub_processor
-      assert denied.family == :coi
+      assert denied.family == :invoice
       assert denied.tenant == :acme
       assert denied.policy == AshJudgments.Test.ResidencyPolicy
     end
@@ -286,7 +286,7 @@ defmodule AshJudgments.ProfileTest do
             {:sub_processor, true},
             {:sub_processor, false}
           ],
-          family <- [:coi, nil] do
+          family <- [:invoice, nil] do
         Application.put_env(:ash_judgments, :test_residency_decisions, %{
           in_cluster: allowed?,
           sub_processor: allowed?
@@ -431,9 +431,9 @@ defmodule AshJudgments.ProfileTest do
         ]
       ])
 
-      question = %{profile: :hosted, family: :coi}
+      question = %{profile: :hosted, family: :invoice}
 
-      assert {:error, %AshJudgments.Profile.ResidencyDenied{family: :coi}} =
+      assert {:error, %AshJudgments.Profile.ResidencyDenied{family: :invoice}} =
                AshJudgments.Profile.model_spec(question, %{}, %{tenant: :acme})
     end
   end

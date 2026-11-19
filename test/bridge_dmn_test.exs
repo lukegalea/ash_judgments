@@ -173,7 +173,7 @@ defmodule AshJudgments.BridgeDmnTest do
       refute Map.has_key?(inputs, "notes_follow_up__p_true")
     end
 
-    test "common envelope inputs: family, risk tier, jurisdiction" do
+    test "common envelope inputs: family, tier, jurisdiction" do
       inputs = Dmn.inputs([], family: "clinic_notes", risk_tier: "high", jurisdiction: "ca")
 
       assert inputs["family"] == "clinic_notes"
