@@ -64,7 +64,7 @@ judgments do
   question :coverage_current do
     type AshJudgments.Evaluate.Evidence
     instructions "Does the certificate show coverage current on the review date?"
-    family :coi
+    family :invoice
     version 3
     profile :laya_local
     pii :minimised
@@ -229,7 +229,7 @@ Facts are derived data — the admission ledger is the source of truth — so a
 cut-over is never SQL translation. You **replay your admissions**: stand the
 new temporal table up beside the old one, stream the recorded admissions in
 `effective_at` order through the same materialiser, and archive the legacy
-table (rename, never drop). The documented pattern is vpm_poc's VPM-51
+table (rename, never drop). The documented pattern is the
 first-host cut-over (PR #13): the born-temporal host table
 (`priv/repo/migrations/20261007144815_add_compliance_fact_host.exs`), the
 replay module `AshEnterprise.ComplianceConfig.FactReplay` — `replay/2`

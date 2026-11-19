@@ -176,6 +176,6 @@ See [Conventional Commits](https://conventionalcommits.org) for commit guideline
 ### Documentation:
 
 - README: "Replay your admissions" — the legacy→temporal migration story
-  (the vpm_poc VPM-51 admission-ledger replay as the documented pattern;
+  (the first host admission-ledger replay as the documented pattern;
   the C1 opt-in at cut-over; the C2 digest-periods pointer) and the
   `ash_events` fork-pin tracking note (upstream PR #104, issue #103).
