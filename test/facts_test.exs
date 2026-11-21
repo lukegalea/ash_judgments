@@ -98,9 +98,12 @@ defmodule AshJudgments.FactsTest do
     test "omitted writes no fact and supersedes a prior one (unknown, never out)" do
       # Pin the instants: the fact takes effect 2h ago, the omission
       # truncates it 1h ago (history preserved; membership unknown since).
+      # Each instant is read off the clock once: reading it again for the
+      # history query could land a second later, at the truncation itself.
+      omitted_at = hours_from_now(-1)
       assert materialise!(effective_at: hours_from_now(-2)) == :materialised
 
-      assert materialise!(result: :omitted, effective_at: hours_from_now(-1)) == :superseded
+      assert materialise!(result: :omitted, effective_at: omitted_at) == :superseded
 
       # The as-of-now read is empty — the predicate returns to unknown.
       assert current_facts() == []
@@ -109,7 +112,7 @@ defmodule AshJudgments.FactsTest do
       # the fact still answers.
       [truncated] =
         Ash.read!(AshJudgments.Test.Fact,
-          as_of: hours_from_now(-1) |> DateTime.add(-1, :second)
+          as_of: DateTime.add(omitted_at, -1, :second)
         )
 
       assert truncated.holds == true
@@ -134,14 +137,16 @@ defmodule AshJudgments.FactsTest do
 
     test "a person admission supersedes freely (the reviewer is the author of record)" do
       # Pin the two admissions' effective_at so the as-of read between them
-      # is deterministic (the periods split at the pinned instants).
+      # is deterministic (the periods split at the pinned instants). The
+      # revision's instant is read off the clock once, as above.
+      revised_at = hours_from_now(-1)
       assert materialise!(grade: :grant, effective_at: hours_from_now(-2)) == :materialised
 
       assert materialise!(
                grade: :person,
                value: "routine",
                holds: false,
-               effective_at: hours_from_now(-1)
+               effective_at: revised_at
              ) == :materialised
 
       fact = current()
@@ -159,7 +164,7 @@ defmodule AshJudgments.FactsTest do
       history_at_revision =
         AshJudgments.Test.Fact
         |> Ash.Query.filter(subject_id == ^subject_id)
-        |> Ash.Query.as_of(hours_from_now(-1) |> DateTime.add(-1, :second))
+        |> Ash.Query.as_of(DateTime.add(revised_at, -1, :second))
         |> Ash.read!()
 
       assert length(history_at_revision) == 1
