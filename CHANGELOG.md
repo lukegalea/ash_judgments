@@ -12,6 +12,13 @@ See [Conventional Commits](https://conventionalcommits.org) for commit guideline
 
 ## [Unreleased]
 
+- `AshJudgments.Banding.AutomatedShare` counts the live work it leaves unsettled. It takes a
+  required `:judgment_resource` and reads the ledger's `:live` observations beside the live
+  bandings: one no live banding names (refused by the table, never banded, or a failed call)
+  is counted as `not_banded`, in the week it was recorded. Each share is now of the week's
+  live answers (`answers`, which replaces `bandings`), so refused and unbanded work no longer
+  drops out of the denominator. A family with runs and no live answers reads
+  `"no live answers yet"`. The `AshJudgments.A2ui.Calibration` report shows the new column.
 - A Choice question declared with a plain option list (`constraints of: [:a, :b]`) is judged.
   The judge built its wire question with the list on `of:`, which `AshAi.Evaluate.Choice`
   refuses (it takes an `Ash.Type.Enum` or `:atom` with `one_of`), so every call raised a
