@@ -157,7 +157,7 @@ defmodule AshJudgments.Facts.Replay do
       scope: payload["scope"],
       subject_state_digest: payload["subject_state_digest"],
       valid_until: parse_dt(payload["valid_until"]),
-      admission_grade: grade(payload["admission_grade"]),
+      grade: grade(payload["admission_grade"]),
       admission_id: payload["admission_id"],
       effective_at: effective_at
     }

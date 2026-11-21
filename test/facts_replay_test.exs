@@ -62,7 +62,7 @@ defmodule AshJudgments.FactsReplayTest do
     revised = Enum.at(decisions, 1)
     assert revised.predicate == @predicate
     assert revised.holds == false
-    assert revised.admission_grade == :grant
+    assert revised.grade == :grant
   end
 
   test "replaying the decisions into an empty table rebuilds the same periods" do
@@ -75,6 +75,21 @@ defmodule AshJudgments.FactsReplayTest do
 
     assert {:ok, %{replayed: 4, materialised: 3, superseded: 1}} = Replay.replay(decisions)
     assert periods() == before
+  end
+
+  test "a replayed person-admitted fact keeps its grade, and a later grant admission keeps off it" do
+    {:ok, :materialised} = materialise("person", grade: :person, effective_at: @t1)
+
+    {:ok, decisions} = Replay.decisions_from_event_log(EventLog)
+    AshJudgments.TestRepo.query!("DELETE FROM test_facts")
+    assert {:ok, %{replayed: 1, materialised: 1}} = Replay.replay(decisions)
+
+    assert [%{admission_grade: :person, value: "urgent"}] = Ash.read!(Fact)
+
+    assert {:ok, :kept_person_fact} =
+             materialise("person", value: "routine", holds: false, effective_at: @t2)
+
+    assert [%{admission_grade: :person, value: "urgent"}] = Ash.read!(Fact)
   end
 
   test "replay refuses a facts resource that is not temporal" do
