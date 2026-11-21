@@ -526,11 +526,22 @@ defmodule AshJudgments.Registry.Judge do
     criteria = question_criteria(question)
     instructions = question_description(question)
 
-    case question.type.to_question(instructions, criteria, question.constraints) do
+    case question.type.to_question(instructions, criteria, wire_constraints(question)) do
       {:ok, wire} -> wire
       _ -> %{instructions: instructions, criteria: criteria}
     end
   end
+
+  # A Choice's plain option list is not an answer-type constraint: upstream
+  # takes `of:` as an Ash.Type.Enum or `:atom` with `one_of` only. The
+  # generated judge action leaves the list off its return constraints and
+  # the options ride the criteria, so the wire question is built the same
+  # way.
+  defp wire_constraints(%{type: AshAi.Evaluate.Choice, constraints: constraints}) do
+    if is_list(constraints[:of]), do: Keyword.delete(constraints, :of), else: constraints
+  end
+
+  defp wire_constraints(question), do: question.constraints
 
   defp pinned_expectation(question) do
     case question.profile do

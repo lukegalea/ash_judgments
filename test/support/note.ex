@@ -40,6 +40,25 @@ defmodule AshJudgments.Test.Note do
       ttl(3600)
       bpmn_callable?(true)
     end
+
+    # A Choice whose options are a plain list on `of:` (no enum, no
+    # source attribute): the shape the DSL documents next to an enum.
+    question :notes_stance do
+      type AshAi.Evaluate.Choice
+      constraints(of: [:supports, :contradicts])
+      instructions("Does the note support or contradict the plan?")
+
+      criteria(%{
+        supports: "The note agrees with the plan",
+        contradicts: "The note disagrees with the plan"
+      })
+
+      version(1)
+      family(:clinic_notes)
+      profile(:test_local)
+      state_projection(AshJudgments.Test.Projections.NoteText)
+      state_shape(%{"text" => "string"})
+    end
   end
 
   postgres do
