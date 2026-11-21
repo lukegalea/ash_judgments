@@ -34,7 +34,9 @@ defmodule AshJudgments.Test.CalibrationRun do
 
     # The AshJudgments.A2ui.Calibration report.
     action :automated_share, {:array, :map} do
-      run {AshJudgments.Banding.AutomatedShare, banding_resource: AshJudgments.Test.Banding}
+      run {AshJudgments.Banding.AutomatedShare,
+           banding_resource: AshJudgments.Test.Banding,
+           judgment_resource: AshJudgments.Test.Judgment}
     end
   end
 end

@@ -393,7 +393,7 @@ defmodule AshJudgments.A2uiTest do
     test "per family and week: admitted, sent to review and omitted, with their shares" do
       for band <- [:admit, :admit, :review], do: banding!(judgment!(), band: band)
       last_week = banding!(judgment!(), band: :omit)
-      _shadow = banding!(judgment!(), band: :admit, mode: :shadow)
+      _shadow = banding!(judgment!(mode: :shadow), band: :admit, mode: :shadow)
 
       AshJudgments.TestRepo.query!(
         "UPDATE test_bandings SET banded_at = banded_at - interval '7 days' WHERE id = $1",
@@ -409,38 +409,67 @@ defmodule AshJudgments.A2uiTest do
                %{
                  family: "standards_commenting",
                  week: week_before,
-                 bandings: 1,
+                 answers: 1,
                  admitted: "0 (0%)",
                  review: "0 (0%)",
-                 omitted: "1 (100%)"
+                 omitted: "1 (100%)",
+                 not_banded: "0 (0%)"
                },
                %{
                  family: "standards_commenting",
                  week: this_week,
-                 bandings: 3,
+                 answers: 3,
                  admitted: "2 (67%)",
                  review: "1 (33%)",
-                 omitted: "0 (0%)"
+                 omitted: "0 (0%)",
+                 not_banded: "0 (0%)"
                }
              ]
     end
 
-    test "a family with runs and no bandings says so, and divides nothing" do
+    test "live answers no banding settled count in the week, as not banded" do
+      for _ <- 1..3, do: banding!(judgment!(), band: :admit)
+
+      # Refused by the table (no rule matched), or never banded (an unknown
+      # answer, a failed call): live work with no banding row.
+      for _ <- 1..2, do: judgment!()
+
+      # Not live work: a calibration pass and a shadow candidate.
+      judgment!(mode: :calibration)
+      judgment!(mode: :shadow)
+
+      this_week = Date.utc_today() |> Date.beginning_of_week() |> Date.to_iso8601()
+
+      assert share_rows() == [
+               %{
+                 family: "standards_commenting",
+                 week: this_week,
+                 answers: 5,
+                 admitted: "3 (60%)",
+                 review: "0 (0%)",
+                 omitted: "0 (0%)",
+                 not_banded: "2 (40%)"
+               }
+             ]
+    end
+
+    test "a family with runs and no live answers says so, and divides nothing" do
       record_run!("clinic_notes")
 
       assert share_rows() == [
                %{
                  family: "clinic_notes",
-                 week: "no bandings yet",
-                 bandings: 0,
+                 week: "no live answers yet",
+                 answers: 0,
                  admitted: "—",
                  review: "—",
-                 omitted: "—"
+                 omitted: "—",
+                 not_banded: "—"
                }
              ]
     end
 
-    test "no runs and no bandings is no rows" do
+    test "no runs and no live answers is no rows" do
       assert share_rows() == []
     end
 

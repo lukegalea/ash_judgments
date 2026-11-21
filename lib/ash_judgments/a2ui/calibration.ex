@@ -11,9 +11,9 @@ defmodule AshJudgments.A2ui.Calibration do
   0047), so this is the family's whole trajectory. Read-only.
 
   With `:share_action`, the surface also carries the **Automated share**
-  report: per family and week, how many live bandings the table admitted,
-  sent to review and omitted. It is the coverage a run promised, held
-  against what the table then did.
+  report: per family and week, how many live answers the table admitted,
+  sent to review and omitted, and how many it did not band. It is the
+  coverage a run promised, held against what the table then did.
 
   ## Contract
 
@@ -26,12 +26,14 @@ defmodule AshJudgments.A2ui.Calibration do
 
     ```elixir
     action :automated_share, {:array, :map} do
-      run {AshJudgments.Banding.AutomatedShare, banding_resource: MyApp.SystemOne.Banding}
+      run {AshJudgments.Banding.AutomatedShare,
+           banding_resource: MyApp.SystemOne.Banding,
+           judgment_resource: MyApp.SystemOne.Judgment}
     end
     ```
 
-    Authorize it as a read: it reads the runs and the bandings as the
-    actor, under their own policies.
+    Authorize it as a read: it reads the runs, the bandings and the
+    judgments as the actor, under their own policies.
   """
   @moduledoc since: "0.3.3"
 
@@ -47,7 +49,7 @@ defmodule AshJudgments.A2ui.Calibration do
         quote do
           component :report, :automated_share do
             action unquote(share_action)
-            fields [:family, :week, :bandings, :admitted, :review, :omitted]
+            fields [:family, :week, :answers, :admitted, :review, :omitted, :not_banded]
           end
         end
       end
