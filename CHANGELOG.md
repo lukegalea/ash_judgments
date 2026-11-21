@@ -12,6 +12,10 @@ See [Conventional Commits](https://conventionalcommits.org) for commit guideline
 
 ## [Unreleased]
 
+- `AshJudgments.Explain.fact/3`: explains a materialised fact on the `ash_provenance` contract
+  (fact, banding, decision evaluation, observations, atoms) from records the caller has read.
+  The evaluation's `matched_rule_ids` are classified with `AshProvenance.MatchedRules`; a
+  missing link is `:not_recorded`, an unreadable one `:unreadable`. Adds the `ash_provenance` dependency.
 - Requires Elixir 1.20 or later.
 - Moves to ash_a2ui 1.0: the removed `spec_version` option is dropped from the A2UI surfaces.
 - `AshJudgments.Facts.Replay`: reads a facts resource's decisions back out of its AshEvents
