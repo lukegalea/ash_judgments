@@ -17,6 +17,8 @@ See [Conventional Commits](https://conventionalcommits.org) for commit guideline
 - `AshJudgments.Facts.Replay`: reads a facts resource's decisions back out of its AshEvents
   log at each write's `as_of` (`:materialise`, `:revise`, `:truncate`, `:supersede`) and
   replays them through the materialiser. Hosts had each carried a copy.
+- `AshJudgments.Facts.Replay`: a replayed decision carries its admission grade under the
+  materialiser's `grade` key, so a person-admitted fact is rebuilt at `:person`, not `:grant`.
 
 ## [0.3.3] (2026-10-31)
 
