@@ -12,6 +12,11 @@ See [Conventional Commits](https://conventionalcommits.org) for commit guideline
 
 ## [Unreleased]
 
+- A Choice question declared with a plain option list (`constraints of: [:a, :b]`) is judged.
+  The judge built its wire question with the list on `of:`, which `AshAi.Evaluate.Choice`
+  refuses (it takes an `Ash.Type.Enum` or `:atom` with `one_of`), so every call raised a
+  `MatchError`. The list now stays off the wire question's constraints, as it already stays
+  off the judge action's return constraints; the options ride the criteria.
 - `AshJudgments.Explain.fact/3`: explains a materialised fact on the `ash_provenance` contract
   (fact, banding, decision evaluation, observations, atoms) from records the caller has read.
   The evaluation's `matched_rule_ids` are classified with `AshProvenance.MatchedRules`; a

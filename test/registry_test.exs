@@ -405,6 +405,32 @@ defmodule AshJudgments.RegistryTest do
       refute recorded.record_hash == nil
     end
 
+    test "a Choice declared with a plain option list on `of:` is judged" do
+      put_test_env(%{"JUDGE_BASE_URL" => "http://127.0.0.1:11435", "JUDGE_API_KEY" => "local"})
+
+      answer =
+        AshJudgments.Test.Note
+        |> Ash.ActionInput.for_action(:judge_notes_stance, %{
+          "input" => %{"text" => "synthetic note"}
+        })
+        |> Ash.run_action!(context: %{judgments: %{req_llm: AshJudgments.Test.FakeReqLLM}})
+
+      assert %AshAi.Evaluate.Choice{value: "supports"} = answer
+
+      assert_receive {:judge_call, _spec, _state, questions}
+      assert [{_key, question}] = Enum.to_list(questions)
+      assert question.type == :choice
+
+      assert Map.keys(question.criteria) |> Enum.sort() ==
+               ["contradicts", "supports"]
+
+      recorded = AshJudgments.Test.Judgment |> Ash.read!() |> List.first()
+
+      assert recorded.question_id == "judgment:v0:AshJudgments.Test.Note#judgments/notes_stance"
+      assert recorded.answer_kind == :choice
+      assert recorded.value == "supports"
+    end
+
     test "the matrix action asks runtime questions and returns one answer per element" do
       put_test_env(%{"JUDGE_BASE_URL" => "http://127.0.0.1:11435", "JUDGE_API_KEY" => "local"})
 
