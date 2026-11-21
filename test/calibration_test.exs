@@ -346,6 +346,61 @@ defmodule AshJudgments.CalibrationTest do
       assert RiskControl.threshold_low([], 0.5) == nil
     end
 
+    test "coverage is the share the table decides without review" do
+      scored = [
+        {0.95, true},
+        {0.9, true},
+        {0.8, false},
+        {0.6, true},
+        {0.3, false},
+        {0.2, false},
+        {0.1, false}
+      ]
+
+      assert RiskControl.coverage(scored, 0.9, nil) == 2 / 7
+      assert RiskControl.coverage(scored, 0.9, 0.3) == 5 / 7
+      assert RiskControl.coverage(scored, nil, 0.3) == nil
+      assert RiskControl.coverage([], 0.9, nil) == nil
+    end
+
+    test "a run's thresholds carry the coverage of the table they render" do
+      scored = [
+        {0.95, true},
+        {0.9, true},
+        {0.8, false},
+        {0.6, true},
+        {0.3, false},
+        {0.2, false},
+        {0.1, false}
+      ]
+
+      Application.put_env(:ash_judgments, :families, %{
+        split_family: %{alpha: 0.125, low_band: :admit_no},
+        upper_family: %{alpha: 0.125}
+      })
+
+      # With a low band the scores at or below 0.3 are decided too.
+      assert Calibration.conformal_thresholds("split_family", scored) == %{
+               "0.125" => %{
+                 "threshold" => "0.9",
+                 "threshold_low" => "0.3",
+                 "coverage" => "0.7143"
+               }
+             }
+
+      # Without one, λ̂_low is recorded and decides nothing.
+      assert Calibration.conformal_thresholds("upper_family", scored) == %{
+               "0.125" => %{
+                 "threshold" => "0.9",
+                 "threshold_low" => "0.3",
+                 "coverage" => "0.2857"
+               }
+             }
+
+      # Nothing earned at the default α: no thresholds, so no coverage.
+      assert Calibration.conformal_thresholds("clinic_triage", scored) == %{}
+    end
+
     test "the audit alarm at m=200, alpha0=0.02 is 8" do
       assert RiskControl.alarm_threshold(200, 0.02) == 8
     end

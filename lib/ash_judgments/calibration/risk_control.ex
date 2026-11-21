@@ -121,6 +121,29 @@ defmodule AshJudgments.Calibration.RiskControl do
   end
 
   @doc """
+  The coverage of a band table on its own calibration items: the share
+  of `scored` it decides without review. That is every score at or above
+  `threshold` and, when `threshold_low` is given, every score at or
+  below it. nil when there are no items or no threshold.
+
+      scored = [{0.95, true}, {0.9, true}, {0.6, true}, {0.2, false}]
+      coverage(scored, 0.9, nil)   #=> 0.5
+      coverage(scored, 0.9, 0.2)   #=> 0.75
+  """
+  @doc since: "0.3.4"
+  def coverage([], _threshold, _threshold_low), do: nil
+  def coverage(_scored, nil, _threshold_low), do: nil
+
+  def coverage(scored, threshold, threshold_low) do
+    decided =
+      Enum.count(scored, fn {score, _supports?} ->
+        score >= threshold or (threshold_low != nil and score <= threshold_low)
+      end)
+
+    decided / length(scored)
+  end
+
+  @doc """
   The audit alarm (design §5): the smallest `k` with
   `P(Binomial(m, α₀) ≥ k) ≤ level` (default 0.05). At m = 200, α₀ = 0.02
   this is 8 — the design's window rule.

@@ -124,7 +124,11 @@ defmodule AshJudgments.CalibrateTaskTest do
       assert run.result == :proposed_table
       assert run.ece == "0.0"
       assert run.brier == "0.0"
-      assert run.conformal_thresholds == %{"0.016" => %{"threshold" => "0.9"}}
+
+      assert run.conformal_thresholds == %{
+               "0.016" => %{"threshold" => "0.9", "coverage" => "1.0"}
+             }
+
       assert run.source == :eval_set
       assert run.created_by == "mix ash_judgments.calibrate"
       assert String.starts_with?(run.record_hash, "sha256:")
@@ -133,7 +137,7 @@ defmodule AshJudgments.CalibrateTaskTest do
       # linked back to the run — what ProposalDmn renders.
       assert run.proposed_band_table["definition_key"] == "bands_clinic_triage"
       assert run.proposed_band_table["run_id"] == run.id
-      assert run.proposed_band_table["thresholds"] == %{"threshold" => "0.9"}
+      assert run.proposed_band_table["thresholds"] == %{"threshold" => "0.9", "coverage" => "1.0"}
 
       assert output =~ run.id
     end
@@ -151,12 +155,13 @@ defmodule AshJudgments.CalibrateTaskTest do
       [run] = runs()
 
       assert run.conformal_thresholds == %{
-               "0.016" => %{"threshold" => "0.95", "threshold_low" => "0.05"}
+               "0.016" => %{"threshold" => "0.95", "threshold_low" => "0.05", "coverage" => "1.0"}
              }
 
       assert run.proposed_band_table["thresholds"] == %{
                "threshold" => "0.95",
-               "threshold_low" => "0.05"
+               "threshold_low" => "0.05",
+               "coverage" => "1.0"
              }
 
       assert output =~ ~s(<rule id="rule_admit_no">)

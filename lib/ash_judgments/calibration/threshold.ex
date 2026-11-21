@@ -7,7 +7,9 @@ defmodule AshJudgments.Calibration.Threshold do
   (`AshJudgments.Calibration.FamilyConfig.alpha/1`): the calibration
   fragment's `:threshold` calculation, a decimal string, or nil when the
   run earned none at that α. With `key: "threshold_low"` it is the
-  `:threshold_low` calculation, the lower threshold. Display only: the
+  `:threshold_low` calculation, the lower threshold, and with
+  `key: "coverage"` the `:coverage` calculation, the share of the run's
+  items its table decides without review. Display only: the
   proposal and the verifier read `conformal_thresholds` themselves.
   """
   @moduledoc since: "0.3.3"

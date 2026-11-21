@@ -56,9 +56,56 @@ defmodule AshJudgments.Calibration do
 
   @moduledoc since: "0.1.0"
 
-  alias AshJudgments.Calibration.FamilyConfig
+  alias AshJudgments.Calibration.{FamilyConfig, RiskControl}
 
   @band_tag_prefix "judgments:family:"
+
+  @doc """
+  The run's earned thresholds at the family's α, as a run records them in
+  `conformal_thresholds`: `%{"<α>" => %{"threshold" => λ̂, "threshold_low"
+  => λ̂_low, "coverage" => c}}`, decimal strings. `scored` is the list of
+  `{score, gold_supports?}` the thresholds are earned over
+  (`RiskControl.threshold/2`, `RiskControl.threshold_low/2`). Each key is
+  there only when earned, and neither threshold earned is `%{}`: the
+  family cannot certify at this α.
+
+  `"coverage"` is the share of `scored` the proposed table decides
+  without review (`RiskControl.coverage/3`), rounded to four places: the
+  scores at or above λ̂, and at or below λ̂_low when the family has a
+  `low_band` and λ̂_low is below λ̂, as the table renders it. It is what
+  a family's live bandings can be held against.
+  """
+  @doc since: "0.3.4"
+  @spec conformal_thresholds(String.t(), [{number(), boolean()}]) :: map()
+  def conformal_thresholds(family, scored) do
+    alpha = FamilyConfig.alpha(family)
+    threshold = RiskControl.threshold(scored, alpha)
+    threshold_low = RiskControl.threshold_low(scored, alpha)
+    rendered_low = rendered_low(FamilyConfig.low_band(family), threshold, threshold_low)
+    coverage = RiskControl.coverage(scored, threshold, rendered_low)
+
+    earned =
+      %{
+        "threshold" => threshold,
+        "threshold_low" => threshold_low,
+        "coverage" => coverage && Float.round(coverage, 4)
+      }
+      |> Enum.reject(fn {_key, value} -> is_nil(value) end)
+      |> Map.new(fn {key, value} -> {key, decimal_string(value)} end)
+
+    if earned == %{}, do: %{}, else: %{Float.to_string(alpha) => earned}
+  end
+
+  defp rendered_low(nil, _threshold, _threshold_low), do: nil
+
+  defp rendered_low(_low_band, threshold, threshold_low)
+       when is_number(threshold) and is_number(threshold_low) and threshold_low < threshold,
+       do: threshold_low
+
+  defp rendered_low(_low_band, _threshold, _threshold_low), do: nil
+
+  defp decimal_string(value) when is_float(value), do: :erlang.float_to_binary(value, [:short])
+  defp decimal_string(value), do: to_string(value)
 
   @doc """
   The n-threshold proposal trigger. `run` is a recorded §8.1 run row

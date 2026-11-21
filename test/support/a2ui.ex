@@ -22,7 +22,9 @@ end
 
 defmodule AshJudgments.Test.A2ui.CalibrationUI do
   @moduledoc false
-  use AshJudgments.A2ui.Calibration, resource: AshJudgments.Test.CalibrationRun
+  use AshJudgments.A2ui.Calibration,
+    resource: AshJudgments.Test.CalibrationRun,
+    share_action: :automated_share
 end
 
 defmodule AshJudgments.Test.A2ui.FactsUI do

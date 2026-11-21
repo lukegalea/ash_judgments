@@ -31,6 +31,11 @@ defmodule AshJudgments.Test.CalibrationRun do
       argument :record_id, :uuid, allow_nil?: false
       run fn input, _context -> {:ok, %{certified: input.arguments.record_id}} end
     end
+
+    # The AshJudgments.A2ui.Calibration report.
+    action :automated_share, {:array, :map} do
+      run {AshJudgments.Banding.AutomatedShare, banding_resource: AshJudgments.Test.Banding}
+    end
   end
 end
 

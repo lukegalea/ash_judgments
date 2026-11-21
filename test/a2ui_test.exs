@@ -32,7 +32,8 @@ defmodule AshJudgments.A2uiTest do
   setup do
     Ecto.Adapters.SQL.Sandbox.checkout(AshJudgments.TestRepo, sandbox: false)
 
-    for table <- ~w(test_judgments test_human_verdicts test_bandings test_event_log) do
+    for table <-
+          ~w(test_judgments test_human_verdicts test_bandings test_calibration_runs test_event_log) do
       AshJudgments.TestRepo.query!("DELETE FROM " <> table)
     end
 
@@ -388,6 +389,128 @@ defmodule AshJudgments.A2uiTest do
     end
   end
 
+  describe "the automated share, on the calibration surface" do
+    test "per family and week: admitted, sent to review and omitted, with their shares" do
+      for band <- [:admit, :admit, :review], do: banding!(judgment!(), band: band)
+      last_week = banding!(judgment!(), band: :omit)
+      _shadow = banding!(judgment!(), band: :admit, mode: :shadow)
+
+      AshJudgments.TestRepo.query!(
+        "UPDATE test_bandings SET banded_at = banded_at - interval '7 days' WHERE id = $1",
+        [Ecto.UUID.dump!(last_week.id)]
+      )
+
+      this_week = Date.utc_today() |> Date.beginning_of_week() |> Date.to_iso8601()
+
+      week_before =
+        Date.utc_today() |> Date.add(-7) |> Date.beginning_of_week() |> Date.to_iso8601()
+
+      assert share_rows() == [
+               %{
+                 family: "standards_commenting",
+                 week: week_before,
+                 bandings: 1,
+                 admitted: "0 (0%)",
+                 review: "0 (0%)",
+                 omitted: "1 (100%)"
+               },
+               %{
+                 family: "standards_commenting",
+                 week: this_week,
+                 bandings: 3,
+                 admitted: "2 (67%)",
+                 review: "1 (33%)",
+                 omitted: "0 (0%)"
+               }
+             ]
+    end
+
+    test "a family with runs and no bandings says so, and divides nothing" do
+      record_run!("clinic_notes")
+
+      assert share_rows() == [
+               %{
+                 family: "clinic_notes",
+                 week: "no bandings yet",
+                 bandings: 0,
+                 admitted: "—",
+                 review: "—",
+                 omitted: "—"
+               }
+             ]
+    end
+
+    test "no runs and no bandings is no rows" do
+      assert share_rows() == []
+    end
+
+    test "the surface runs it as a report, beside each run's coverage" do
+      record_run!("standards_commenting")
+      banding!(judgment!(), band: :review)
+
+      [%{"createSurface" => surface}] = AshA2ui.Info.build_surface(A2ui.CalibrationUI)
+      assert [run] = surface["dataModel"]["records"]
+      assert run["coverage"] == "0.84"
+
+      assert {:ok, messages} =
+               AshA2ui.ActionHandler.handle(
+                 A2ui.CalibrationUI,
+                 %{
+                   "version" => "1.0",
+                   "callAgentFunction" => %{
+                     "surfaceId" => "judgment_calibration",
+                     "functionCallId" => "call-1",
+                     "callFunction" => %{
+                       "@call" => "ashAction",
+                       "catalogId" => AshA2ui.Encoder.ash_catalog_id(),
+                       "args" => %{
+                         "name" => "report",
+                         "sourceComponentId" => "report_automated_share",
+                         "context" => %{"component" => "automated_share"}
+                       }
+                     }
+                   }
+                 },
+                 []
+               )
+
+      assert [rows] =
+               for(
+                 %{"updateDataModel" => %{"path" => "/report/automated_share/rows", "value" => v}} <-
+                   messages,
+                 do: v
+               )
+
+      assert [%{"family" => "standards_commenting", "review" => "1 (100%)"}] = rows
+    end
+  end
+
+  defp share_rows do
+    AshJudgments.Test.CalibrationRun
+    |> Ash.ActionInput.for_action(:automated_share, %{})
+    |> Ash.run_action!()
+  end
+
+  defp record_run!(family) do
+    AshJudgments.Test.CalibrationRun
+    |> Ash.Changeset.for_create(:record, %{
+      family: family,
+      question_hashes: ["sha256:" <> String.duplicate("a", 64)],
+      model_version: "test-model-1.0.0",
+      model_digest: "sha256:" <> String.duplicate("b", 64),
+      runtime_version: "0.9.0",
+      eval_set_hash: "sha256:" <> String.duplicate("c", 64),
+      region: "ca",
+      n: 62,
+      n_per_class: %{"true" => 31, "false" => 31},
+      metrics: %{"ece" => "0.02", "brier" => "0.08"},
+      conformal_thresholds: %{"0.016" => %{"threshold" => "0.93", "coverage" => "0.84"}},
+      source: :eval_set,
+      result: :no_table
+    })
+    |> Ash.create!()
+  end
+
   defp record_verdict(banding, answer, opts \\ []) do
     Banding
     |> Ash.ActionInput.for_action(
@@ -490,7 +613,7 @@ defmodule AshJudgments.A2uiTest do
         "comments_are_durable_facts_only__p_true" => p_true,
         "comments_are_durable_facts_only__p_false" => "0.76"
       },
-      mode: :live
+      mode: Keyword.get(opts, :mode, :live)
     })
     |> Ash.create!()
   end
