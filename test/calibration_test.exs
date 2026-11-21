@@ -14,7 +14,7 @@ defmodule AshJudgments.CalibrationTest do
   use ExUnit.Case, async: false
 
   alias AshJudgments.Calibration
-  alias AshJudgments.Calibration.{FamilyConfig, Metrics, RiskControl}
+  alias AshJudgments.Calibration.{FamilyConfig, Metrics, ProposalDmn, RiskControl}
   alias AshJudgments.Registry.Canonical
 
   @digest "sha256:" <> String.duplicate("b", 64)
@@ -396,7 +396,9 @@ defmodule AshJudgments.CalibrationTest do
       assert finding.actual["urgent"] == 2
     end
 
-    test "a lower threshold rides the proposal's thresholds" do
+    test "with a low band, a lower threshold rides the proposal's thresholds" do
+      Application.put_env(:ash_judgments, :families, %{clinic_triage: %{low_band: :admit_no}})
+
       run =
         record_run(
           n: 62,
@@ -409,7 +411,66 @@ defmodule AshJudgments.CalibrationTest do
       assert proposal.thresholds == %{"threshold" => "0.93", "threshold_low" => "0.12"}
     end
 
-    test "a lower threshold at or above the threshold refuses: ranges that overlap" do
+    test "with no low band, the proposal is the two-range table, overlapping or not" do
+      for low <- ["0.12", "0.93", "0.95"] do
+        run =
+          record_run(
+            n: 62,
+            conformal_thresholds: %{"0.016" => %{"threshold" => "0.93", "threshold_low" => low}}
+          )
+
+        assert {:ok, proposal} =
+                 Calibration.propose_band_table(run, %{question_hash: @question_hash})
+
+        assert proposal.thresholds == %{"threshold" => "0.93"}
+
+        assert {:ok, xml} =
+                 ProposalDmn.render(proposal, low_band: FamilyConfig.low_band(run.family))
+
+        assert {:ok, %{threshold: "0.93", threshold_low: nil, low_band: nil}} =
+                 ProposalDmn.thresholds(xml)
+
+        refute xml =~ "rule_admit_no"
+        refute xml =~ "rule_omit"
+      end
+    end
+
+    test "a run with no upper threshold at the family's alpha proposes nothing" do
+      for thresholds <- [
+            %{},
+            %{"0.05" => %{"threshold" => "0.93"}},
+            %{"0.016" => %{"threshold" => nil, "threshold_low" => "0.12"}},
+            %{"0.016" => %{"threshold" => "error", "threshold_low" => "0.12"}},
+            %{"0.016" => %{"threshold" => "1.5"}},
+            %{"0.016" => %{"threshold" => %{"error" => "no budget"}}}
+          ] do
+        run = record_run(n: 62, conformal_thresholds: thresholds)
+
+        assert {:error, [finding]} =
+                 Calibration.propose_band_table(run, %{question_hash: @question_hash})
+
+        assert finding.finding == :threshold_missing
+        assert finding.family == "clinic_triage"
+        assert finding.alpha == "0.016"
+      end
+    end
+
+    test "with no low band, n below min_n still proposes nothing" do
+      run =
+        record_run(
+          n: 61,
+          conformal_thresholds: %{"0.016" => %{"threshold" => "0.5", "threshold_low" => "0.6"}}
+        )
+
+      assert {:error, [finding]} =
+               Calibration.propose_band_table(run, %{question_hash: @question_hash})
+
+      assert finding.finding == :n_below_min
+    end
+
+    test "with a low band, a lower threshold at or above the threshold refuses: ranges that overlap" do
+      Application.put_env(:ash_judgments, :families, %{clinic_triage: %{low_band: :omit}})
+
       for low <- ["0.93", "0.95"] do
         run =
           record_run(
@@ -503,7 +564,9 @@ defmodule AshJudgments.CalibrationTest do
       assert Enum.any?(findings, &(&1.finding == :eval_set_hash_missing))
     end
 
-    test "a run whose thresholds overlap refuses" do
+    test "with a low band, a run whose thresholds overlap refuses" do
+      Application.put_env(:ash_judgments, :families, %{clinic_triage: %{low_band: :admit_no}})
+
       run =
         record_run(
           n: 62,
@@ -522,6 +585,27 @@ defmodule AshJudgments.CalibrationTest do
         )
 
       assert :ok = Calibration.verify(definition(), %{status: :certified}, run)
+    end
+
+    test "with no low band, a run whose thresholds overlap verifies" do
+      run =
+        record_run(
+          n: 62,
+          conformal_thresholds: %{"0.016" => %{"threshold" => "0.5", "threshold_low" => "0.6"}}
+        )
+
+      assert :ok = Calibration.verify(definition(), %{status: :certified}, run)
+    end
+
+    test "a run with no upper threshold at the family's alpha refuses" do
+      for thresholds <- [%{}, %{"0.016" => %{"threshold" => "error", "threshold_low" => "0.6"}}] do
+        run = record_run(n: 62, conformal_thresholds: thresholds)
+
+        assert {:error, [finding]} =
+                 Calibration.verify(definition(), %{status: :certified}, run)
+
+        assert finding.finding == :threshold_missing
+      end
     end
 
     test "a run older than max_age_days refuses" do

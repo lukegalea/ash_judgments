@@ -75,18 +75,21 @@ defmodule AshJudgments.Calibration do
     certified, never published here.
   - `{:error, findings}` — `:n_below_min` (naming family, required n,
     actual n), `:n_per_class_below_min`, `:metrics_miss_pass_bar`
-    (the run's own pre-registered pass bar said no), or
-    `:thresholds_overlap` (the run earned a lower threshold at or above
-    its upper one, so the ranges would claim the same scores). A refusal
-    never writes anything.
+    (the run's own pre-registered pass bar said no),
+    `:threshold_missing` (the run earned no upper threshold λ̂ at the
+    family's α: absent, or not a decimal in `[0, 1]`), or
+    `:thresholds_overlap` (the family has a `low_band` and the run earned
+    a lower threshold at or above its upper one, so the ranges would
+    claim the same scores). A refusal never writes anything.
 
   The proposed THRESHOLDS come from the run's recorded
   `conformal_thresholds` at the family's α — thresholds are earned,
   never hand-set (ADR 0041). They are `%{"threshold" => λ̂}`, plus
   `"threshold_low" => λ̂_low` when the run earned a lower threshold
-  (`RiskControl.threshold_low/2`). Whether the table renders the lower
-  range is the family's `low_band` (`FamilyConfig`), which the caller
-  passes to `ProposalDmn.render/2`.
+  and the family has a `low_band` (`FamilyConfig`), which the caller
+  passes to `ProposalDmn.render/2`. A family with no low band renders
+  no lower range, so its proposal is the two-range table (admit at or
+  above λ̂, review below) and λ̂_low neither rides it nor refuses it.
   """
   @spec propose_band_table(map(), map(), keyword()) ::
           {:ok, map()} | {:error, [map()]}
@@ -107,9 +110,35 @@ defmodule AshJudgments.Calibration do
       pass_bar_finding(run) ++ thresholds_finding(run, config)
   end
 
-  # A lower threshold at or above the upper one makes ranges that claim
-  # the same scores: refused, never rendered.
   defp thresholds_finding(run, config) do
+    threshold_finding(run, config) ++ overlap_finding(run, config)
+  end
+
+  # The table's upper range is the run's earned λ̂: a run that earned
+  # none at the family's α has no table to propose.
+  defp threshold_finding(run, config) do
+    threshold = (thresholds_at(run, config) || %{})["threshold"]
+
+    if unit_decimal?(threshold) do
+      []
+    else
+      [
+        %{
+          finding: :threshold_missing,
+          family: run.family,
+          alpha: Float.to_string(config.alpha),
+          threshold: threshold
+        }
+      ]
+    end
+  end
+
+  # A lower threshold at or above the upper one makes ranges that claim
+  # the same scores: refused, never rendered. A family with no low band
+  # renders no lower range, so its λ̂_low claims no scores.
+  defp overlap_finding(_run, %{low_band: nil}), do: []
+
+  defp overlap_finding(run, config) do
     thresholds = thresholds_at(run, config) || %{}
     threshold = decimal_of(thresholds["threshold"])
     threshold_low = decimal_of(thresholds["threshold_low"])
@@ -132,12 +161,19 @@ defmodule AshJudgments.Calibration do
     (run.conformal_thresholds || %{})[Float.to_string(config.alpha)]
   end
 
-  defp decimal_of(nil), do: nil
-
-  defp decimal_of(value) do
+  defp decimal_of(value) when is_binary(value) or is_number(value) do
     case Decimal.parse(to_string(value)) do
       {decimal, ""} -> decimal
       _ -> nil
+    end
+  end
+
+  defp decimal_of(_value), do: nil
+
+  defp unit_decimal?(value) do
+    case decimal_of(value) do
+      nil -> false
+      decimal -> Decimal.compare(decimal, 0) != :lt and Decimal.compare(decimal, 1) != :gt
     end
   end
 
@@ -221,7 +257,7 @@ defmodule AshJudgments.Calibration do
   defp proposal(run, band_input, config, opts) do
     definition_key = Keyword.get(opts, :definition_key, "bands_" <> run.family)
     alpha_key = Float.to_string(config.alpha)
-    threshold = thresholds_at(run, config)
+    threshold = proposed_thresholds(thresholds_at(run, config), config)
 
     %{
       definition_key: definition_key,
@@ -238,6 +274,11 @@ defmodule AshJudgments.Calibration do
     }
   end
 
+  defp proposed_thresholds(thresholds, %{low_band: nil}),
+    do: Map.delete(thresholds, "threshold_low")
+
+  defp proposed_thresholds(thresholds, _config), do: thresholds
+
   @doc """
   The publish-time verifier (AC-3/AC-4): for a band-table definition
   about to publish for family F, require —
@@ -252,8 +293,12 @@ defmodule AshJudgments.Calibration do
   - the same region;
   - an `eval_set_hash` recorded on the run;
   - a run age ≤ the family's `max_age_days`;
-  - thresholds that do not overlap: a lower threshold, when the run
-    earned one, below the upper one (`:thresholds_overlap`).
+  - an upper threshold λ̂ the run earned at the family's α
+    (`:threshold_missing`);
+  - for a family with a `low_band`, thresholds that do not overlap: a
+    lower threshold, when the run earned one, below the upper one
+    (`:thresholds_overlap`). A family with no low band publishes no
+    lower range, so its λ̂_low is not checked.
 
   Arguments: the definition ref (`%{family:, model_digest:,
   runtime_version:, region:}`), the certification row (or nil), the
