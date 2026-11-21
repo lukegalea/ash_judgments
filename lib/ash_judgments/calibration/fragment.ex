@@ -100,7 +100,7 @@ defmodule AshJudgments.Calibration.Fragment do
       default: %{},
       public?: true,
       description:
-        "At target risk α, with the cost matrix: %{\"alpha\" => %{\"threshold\" => …, \"threshold_low\" => …, \"cost\" => %{…}}} — decimal strings; threshold_low only when the run earned a lower threshold."
+        "At target risk α, with the cost matrix: %{\"alpha\" => %{\"threshold\" => …, \"threshold_low\" => …, \"coverage\" => …, \"cost\" => %{…}}} — decimal strings; threshold_low only when the run earned a lower threshold; coverage is the share of the run's items its table decides without review (Calibration.conformal_thresholds/2)."
 
     ## Provenance and result.
 
@@ -153,6 +153,11 @@ defmodule AshJudgments.Calibration.Fragment do
       public?: true,
       description:
         "The lower conformal threshold at the family's α, as recorded; nil when the run earned none."
+
+    calculate :coverage, :string, {AshJudgments.Calibration.Threshold, key: "coverage"},
+      public?: true,
+      description:
+        "The share of the run's items its table decides without review at the family's α (Calibration.conformal_thresholds/2); nil when the run earned no threshold or recorded none."
   end
 
   actions do

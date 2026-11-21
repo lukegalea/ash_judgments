@@ -22,7 +22,7 @@ defmodule AshJudgments.A2ui do
   | `AshJudgments.A2ui.Verdicts` | the banding resource | `:awaiting_verdict` | `:record_verdict` |
   | `AshJudgments.A2ui.BandTables` | the calibration-run resource | `:awaiting_certification` | `:certify_and_publish` |
   | `AshJudgments.A2ui.Certifications` | the certification resource | `:certified` | `:revoke` |
-  | `AshJudgments.A2ui.Calibration` | the calibration-run resource | `:read` | none |
+  | `AshJudgments.A2ui.Calibration` | the calibration-run resource | `:read`, and `:share_action` when given | none |
   | `AshJudgments.A2ui.Facts` | the facts resource | `:current` | none |
 
   **Every act is an action on the host's resource, under the host's
@@ -31,7 +31,8 @@ defmodule AshJudgments.A2ui do
   the host compiles, so a missing one is a compile error, not a broken
   button. Each surface's moduledoc gives its contract. Where the work is
   the package's own, the package supplies the implementation the host's
-  action runs (`AshJudgments.HumanVerdict.FromBanding`). Where a read
+  action runs (`AshJudgments.HumanVerdict.FromBanding`,
+  `AshJudgments.Banding.AutomatedShare`). Where a read
   crosses two host resources, or the act reaches host machinery (saving
   and publishing a band table), the host writes it.
 

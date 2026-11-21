@@ -264,7 +264,8 @@ defmodule Mix.Tasks.AshJudgments.Calibrate do
       metrics: metrics,
       ece: metrics["ece"],
       brier: metrics["brier"],
-      conformal_thresholds: conformal_thresholds(family, input),
+      conformal_thresholds:
+        AshJudgments.Calibration.conformal_thresholds(family, Map.get(input, :scored, [])),
       source: source,
       created_by: input[:created_by] || "mix ash_judgments.calibrate",
       observations_digest: input[:observations_digest],
@@ -292,25 +293,6 @@ defmodule Mix.Tasks.AshJudgments.Calibrate do
 
   defp n_per_class(_kind, _pairs, input), do: input[:n_per_class] || %{}
 
-  # The earned thresholds at the family's α — never hand-set (ADR 0041):
-  # the upper λ̂ and, when earned, the lower λ̂_low over the same pairs.
-  # Neither earned (the family cannot certify at this α) records an empty
-  # map: the proposal trigger's honest refusal, nothing quieter.
-  defp conformal_thresholds(family, input) do
-    alpha = AshJudgments.Calibration.FamilyConfig.alpha(family)
-    scored = Map.get(input, :scored, [])
-
-    earned =
-      %{
-        "threshold" => AshJudgments.Calibration.RiskControl.threshold(scored, alpha),
-        "threshold_low" => AshJudgments.Calibration.RiskControl.threshold_low(scored, alpha)
-      }
-      |> Enum.reject(fn {_key, lambda} -> is_nil(lambda) end)
-      |> Map.new(fn {key, lambda} -> {key, decimal_string(lambda)} end)
-
-    if earned == %{}, do: %{}, else: %{Float.to_string(alpha) => earned}
-  end
-
   defp propose(run_input) do
     band_input = %{
       question_hash: List.first(run_input.question_hashes),
@@ -328,10 +310,4 @@ defmodule Mix.Tasks.AshJudgments.Calibrate do
     do: Map.new(map, fn {k, v} -> {to_string(k), stringify(v)} end)
 
   defp stringify(v), do: v
-
-  defp decimal_string(value) when is_float(value),
-    do: :erlang.float_to_binary(value, [:short])
-
-  defp decimal_string(value) when is_integer(value), do: Integer.to_string(value)
-  defp decimal_string(value), do: to_string(value)
 end

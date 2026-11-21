@@ -26,6 +26,14 @@ See [Conventional Commits](https://conventionalcommits.org) for commit guideline
   A run that earned no upper threshold at the family's α (absent, or not a decimal in `[0, 1]`)
   is refused as `:threshold_missing`.
 
+- `Calibration.conformal_thresholds/2` assembles a run's earned thresholds at the family's α,
+  and records `"coverage"` beside them: the share of the run's items its table decides without
+  review (`RiskControl.coverage/3`). `mix ash_judgments.calibrate` records it; the calibration
+  fragment reads it back as the `:coverage` calculation, and the Calibration surface shows it.
+- `AshJudgments.Banding.AutomatedShare`: a generic action implementation for the calibration-run
+  resource that reports, per family and week, the live bandings admitted, sent to review and
+  omitted. `AshJudgments.A2ui.Calibration` renders it as a report when given `:share_action`.
+
 ## [0.3.3] (2026-10-31)
 
 ### Features:
