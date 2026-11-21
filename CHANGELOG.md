@@ -19,6 +19,12 @@ See [Conventional Commits](https://conventionalcommits.org) for commit guideline
   replays them through the materialiser. Hosts had each carried a copy.
 - `AshJudgments.Facts.Replay`: a replayed decision carries its admission grade under the
   materialiser's `grade` key, so a person-admitted fact is rebuilt at `:person`, not `:grant`.
+- `Calibration.propose_band_table/3` and `Calibration.verify/3`: a family with no `low_band`
+  renders no lower range, so its λ̂_low no longer refuses a run as `:thresholds_overlap`; the
+  proposal is the two-range table (admit at or above λ̂, review below) and carries no
+  `"threshold_low"`. With a `low_band` configured, overlapping thresholds are refused as before.
+  A run that earned no upper threshold at the family's α (absent, or not a decimal in `[0, 1]`)
+  is refused as `:threshold_missing`.
 
 ## [0.3.3] (2026-10-31)
 
