@@ -164,6 +164,12 @@ What works today:
   entries with escalate-means-omission (`missing: :unknown`), the
   FactBuilder over the materialised facts table, and the fact-snapshot
   hash that pins a finding's inputs (`docs/bridge-ash-rules.md`).
+- `AshJudgments.Explain` — where a materialised fact came from, on the
+  [`ash_provenance`](https://github.com/lukegalea/ash_provenance) contract: fact, banding, decision
+  evaluation, observations and atoms, built from records the caller already read, so the
+  caller's actor and field policies decide what is visible. The evaluation's matched rules are
+  classified (matched, no rule matched, `:failed`, `:not_recorded`); a link that is missing or
+  unreadable is a typed gap.
 - `AshJudgments.Availability` — the optional-dependency contract above.
 - `Telemetry` (AST-90) — the event registry (`[:ash_judgments, ...]` with region,
   residency and disclosure data), handler-side OTel spans (`ai.disclosure` on

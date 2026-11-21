@@ -71,6 +71,9 @@ defmodule AshJudgments.MixProject do
       # transitively on ash.
       {:jason, "~> 1.4"},
 
+      # The plain-data contract the explanation functions return.
+      {:ash_provenance, github: "lukegalea/ash_provenance"},
+
       # The ONE outbound call this package makes: the runtime's
       # model-listing endpoint, for digest pinning
       # (AshJudgments.Profile.Digest — see its scope-boundary note). The
